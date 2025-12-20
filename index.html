@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数织 (Nonogram) 求解器</title>
+    <title>游戏求解器导航</title>
     <style>
         :root {
             --bg-color: #3e3e3e;
@@ -17,578 +17,123 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
-            color: var(--primary-color);
+            color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
             margin: 0;
+            min-height: 100vh;
         }
 
         h1 {
-            margin-bottom: 10px;
+            margin-bottom: 30px;
             color: var(--accent-color);
+            text-align: center;
         }
 
         .container {
             display: flex;
-            gap: 20px;
-            justify-content: center;
-            max-width: 1200px;
+            flex-direction: column;
+            gap: 30px;
+            max-width: 800px;
             width: 100%;
         }
 
-        .input-section {
+        .card {
             background: white;
-            padding: 20px;
+            color: var(--primary-color);
+            padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 250px;
-            display: flex;
-            flex-direction: column;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
 
-        .input-section textarea {
-            width: 100%;
-            height: 200px;
-            /* 增加高度以适应20行 */
-            padding: 10px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            resize: vertical;
-            font-family: monospace;
-            margin-bottom: 15px;
-            font-size: 12px;
-            /* 减小字体以适应更多内容 */
-            line-height: 1.3;
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
         }
 
-        label {
-            font-weight: bold;
-            margin-bottom: 5px;
-            display: block;
+        .card h2 {
+            margin-top: 0;
+            color: var(--accent-color);
         }
 
-        textarea {
-            width: 100%;
-            height: 150px;
-            padding: 10px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            resize: vertical;
-            font-family: monospace;
-            margin-bottom: 15px;
+        .card p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
         }
 
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        button {
-            padding: 10px 20px;
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
             background-color: var(--accent-color);
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
             transition: background 0.3s;
+            margin-top: 15px;
         }
 
-        button:hover {
+        .btn:hover {
             background-color: #357abd;
         }
 
-        button.secondary {
+        .btn-secondary {
             background-color: #6c757d;
         }
 
-        #result-area {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            overflow: auto;
-            display: none;
-            /* 初始隐藏 */
-            min-height: 400px;
+        .btn-secondary:hover {
+            background-color: #5a6268;
         }
 
-        #result-area.show {
-            display: flex !important;
-            justify-content: center;
-            align-items: center;
+        .description {
+            text-align: center;
+            max-width: 800px;
+            margin-bottom: 30px;
+            color: #ddd;
         }
 
-        /* 网格布局 */
-        .nono-grid {
-            display: grid;
-            /* grid-template-columns 和 rows 会在 JS 中动态设置 */
-            border: 2px solid var(--primary-color);
-            background-color: #fff;
-        }
-
-        .cell {
-            width: var(--cell-size);
-            height: var(--cell-size);
-            border: 1px solid #ddd;
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-        }
-
-        /* 粗边框，每5格显示 */
-        .cell.border-right {
-            border-right: 2px solid var(--border-color);
-        }
-
-        .cell.border-bottom {
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        /* 状态样式 */
-        .cell.filled {
-            background-color: var(--primary-color);
-        }
-
-        .cell.empty {
-            color: #ccc;
-        }
-
-        .cell.empty::after {
-            content: "×";
-            font-size: 18px;
-        }
-
-        .cell.unknown {
-            background-color: #f0f0f0;
-            border: 1px dashed #999;
-        }
-
-        .cell.unknown::after {
-            content: "?";
-            color: #666;
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #aaa;
             font-size: 14px;
-        }
-
-        /* 提示数字区域 */
-        .hint {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: #555;
-            background-color: #eaeaea;
-            padding: 2px;
-            white-space: pre-line;
-            text-align: center;
-            line-height: 1.2;
-        }
-
-        .hint.col-hint {
-            flex-direction: column;
-            justify-content: flex-end;
-            padding-bottom: 4px;
-            border-bottom: 2px solid var(--primary-color);
-        }
-
-        .hint.row-hint {
-            justify-content: flex-end;
-            padding-right: 4px;
-            border-right: 2px solid var(--primary-color);
-        }
-
-        .corner {
-            background-color: #fff;
-        }
-
-        .status-msg {
-            margin-top: 10px;
-            font-weight: bold;
-            text-align: center;
         }
     </style>
 </head>
 
 <body>
-
-    <h1>数织 (Nonogram) 求解器</h1>
+    <h1>游戏求解器工具集</h1>
+    
+    <div class="description">
+        <p>这是一个包含多种游戏自动求解器的工具集，目前支持数织(Nonogram)和扫雷(Minesweeper)游戏。</p>
+    </div>
 
     <div class="container">
-        <div class="input-section">
-            <p style="font-size: 0.9em; color: #666;">请输入约束数字，每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。最多20行，每行最多20字符。</p>
-
-            <label for="row-constraints">行约束 (Row Hints):</label>
-            <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
-
-            <label for="col-constraints">列约束 (Column Hints):</label>
-            <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
-
-            <div class="controls">
-                <button onclick="solve()">开始求解</button>
-                <button class="secondary" onclick="loadSample()">加载示例</button>
-                <button class="secondary" onclick="clearConstraints()">清空</button>
-            </div>
-            <div id="status" class="status-msg"></div>
+        <div class="card">
+            <h2>🔢 数织 (Nonogram) 求解器</h2>
+            <p>数织是一种逻辑益智游戏，根据网格边缘的数字提示，在网格中填充方块以绘制图像。此求解器可以解决各种难度的数织谜题。</p>
+            <a href="nonogram.html" class="btn">前往数织求解器</a>
         </div>
 
-        <div id="result-area"
-            style="flex: 1; min-width: 300px; display: flex; justify-content: center; align-items: flex-start;">
-            <!-- 网格将在这里生成 -->
-            <div
-                style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">
-                结果将显示在这里</div>
+        <div class="card">
+            <h2>💣 扫雷 (Minesweeper) 求解器</h2>
+            <p>扫雷是一款经典的逻辑游戏，玩家需要在不触雷的前提下揭开所有安全的格子。此求解器基于高级集合差分算法，可自动分析并解决扫雷局面。</p>
+            <p><small>注意：扫雷求解器是一个用户脚本文件，需要安装到Tampermonkey等用户脚本管理器中使用。</small></p>
+            <a href="minesweeper-solver.user.js" class="btn btn-secondary" download>下载扫雷求解器脚本</a>
         </div>
     </div>
 
-    <script>
-        // 状态常量
-        const UNKNOWN = -1; // 使用-1表示未知，与Python版本一致
-        const FILLED = 1;
-        const EMPTY = 0;
-
-        // 主求解函数
-        function solve() {
-            const statusEl = document.getElementById('status');
-            const resultArea = document.getElementById('result-area');
-            resultArea.classList.remove('show');
-            resultArea.innerHTML = '';
-            statusEl.textContent = "正在求解...";
-
-            // 1. 解析输入
-            const rowsInput = parseConstraints(document.getElementById('row-constraints').value);
-            const colsInput = parseConstraints(document.getElementById('col-constraints').value);
-
-            if (rowsInput.length === 0 || colsInput.length === 0) {
-                statusEl.textContent = "错误：请输入有效的行和列约束。";
-                return;
-            }
-
-            // 限制最多20行
-            if (rowsInput.length > 20 || colsInput.length > 20) {
-                statusEl.textContent = "错误：行数和列数不能超过20。";
-                return;
-            }
-
-            if (rowsInput.length !== colsInput.length) {
-                statusEl.textContent = "错误：行数和列数必须相等。";
-                return;
-            }
-
-            const n = rowsInput.length;
-
-            // 2. 初始化网格 (-1=未知, 1=填, 0=空)
-            let grid = Array(n).fill().map(() => Array(n).fill(UNKNOWN));
-
-            // 3. 调用移植的Python算法
-            try {
-                const solution = solveNonogram(rowsInput, colsInput);
-
-                // 4. 渲染结果
-                renderGrid(solution, rowsInput, colsInput);
-
-                statusEl.textContent = "求解成功！";
-                resultArea.classList.add('show');
-            } catch (e) {
-                statusEl.textContent = e.message;
-            }
-        }
-
-        // 非ogram求解算法（移植自Python版本）
-        function solveNonogram(rows, cols) {
-            const n = rows.length;
-            if (n !== cols.length) {
-                throw new Error("行数和列数不一致");
-            }
-
-            const ans = Array(n).fill().map(() => Array(n).fill(-1));
-
-            // 将rows和cols转换为元组
-            const rowsTuple = rows.map(row => JSON.stringify(row));
-            const colsTuple = cols.map(col => JSON.stringify(col));
-
-            // 将整数转换为二进制字符串
-            function int2str(i) {
-                let si = i.toString(2);
-                return '0'.repeat(n - si.length) + si;
-            }
-
-            // 将二进制字符串转换为数组
-            function str2arr(s) {
-                const tmp = [];
-                for (let i = 0; i < s.length; i++) {
-                    const c = s[i];
-                    if (c === '1') {
-                        if (i === 0 || s[i - 1] === '0') {
-                            tmp.push(1);
-                        } else {
-                            tmp[tmp.length - 1] += 1;
-                        }
-                    }
-                }
-                return tmp;
-            }
-
-            // 设置函数
-            function f1(i, j) {
-                ans[i][j] = 1;
-                for (const p of [...prow[i]]) { // 创建副本以避免迭代时修改
-                    if (p[j] === '0') {
-                        prow[i].delete(p);
-                    }
-                }
-                for (const p of [...pcol[j]]) { // 创建副本以避免迭代时修改
-                    if (p[i] === '0') {
-                        pcol[j].delete(p);
-                    }
-                }
-            }
-
-            function f0(i, j) {
-                ans[i][j] = 0;
-                for (const p of [...prow[i]]) { // 创建副本以避免迭代时修改
-                    if (p[j] === '1') {
-                        prow[i].delete(p);
-                    }
-                }
-                for (const p of [...pcol[j]]) { // 创建副本以避免迭代时修改
-                    if (p[i] === '1') {
-                        pcol[j].delete(p);
-                    }
-                }
-            }
-
-            // 创建所有可能状态的映射
-            const cs = new Map();
-            for (let state = 0; state < (1 << n); state++) {
-                const strState = int2str(state);
-                const arrState = str2arr(strState);
-
-                // 添加对应的状态
-                const arrKey = JSON.stringify(arrState);
-                if (!cs.has(arrKey)) {
-                    cs.set(arrKey, []);
-                }
-                cs.get(arrKey).push(strState);
-
-                // 为未确定的线索添加所有状态
-                const unmarkedKey = JSON.stringify([-1]);
-                if (!cs.has(unmarkedKey)) {
-                    cs.set(unmarkedKey, []);
-                }
-                cs.get(unmarkedKey).push(strState);
-            }
-
-            // 初始化行和列的可能状态集合
-            const prow = Array(n).fill().map(() => new Set());
-            const pcol = Array(n).fill().map(() => new Set());
-
-            for (let i = 0; i < n; i++) {
-                const rowKey = rowsTuple[i];
-                if (cs.has(rowKey)) {
-                    for (const p of cs.get(rowKey)) {
-                        prow[i].add(p);
-                    }
-                }
-
-                const colKey = colsTuple[i];
-                if (cs.has(colKey)) {
-                    for (const p of cs.get(colKey)) {
-                        pcol[i].add(p);
-                    }
-                }
-            }
-
-            // 迭代直到没有变化
-            while (true) {
-                let change = false;
-
-                for (let i = 0; i < n; i++) {
-                    // 处理行
-                    const ps = prow[i];
-                    const cnt = Array(n).fill(0);
-
-                    for (const p of ps) {
-                        for (let j = 0; j < n; j++) {
-                            if (p[j] === '1') {
-                                cnt[j]++;
-                            }
-                        }
-                    }
-
-                    for (let j = 0; j < n; j++) {
-                        if (ans[i][j] == EMPTY && cnt[j] == ps.size) {
-                            throw new Error(`冲突在位置 (${i}, ${j})`);
-                        }
-                        if (ans[i][j] === -1 && cnt[j] === ps.size) {
-                            f1(i, j);
-                            change = true;
-                        }
-                        if (ans[i][j] == FILLED && cnt[j] == 0) {
-                            throw new Error(`冲突在位置 (${i}, ${j})`);
-                        }
-                        if (ans[i][j] === -1 && cnt[j] === 0) {
-                            f0(i, j);
-                            change = true;
-                        }
-                    }
-                }
-
-                for (let i = 0; i < n; i++) {
-                    // 处理列
-                    const ps = pcol[i];
-                    const cnt = Array(n).fill(0);
-
-                    for (const p of ps) {
-                        for (let j = 0; j < n; j++) {
-                            if (p[j] === '1') {
-                                cnt[j]++;
-                            }
-                        }
-                    }
-
-                    for (let j = 0; j < n; j++) {
-                        if (ans[j][i] == EMPTY && cnt[j] == ps.size) {
-                            throw new Error(`冲突在位置 (${j}, ${i})`);
-                        }
-                        if (ans[j][i] == FILLED && cnt[j] == 0) {
-                            throw new Error(`冲突在位置 (${j}, ${i})`);
-                        }
-                        if (ans[j][i] === -1 && cnt[j] === ps.size) {
-                            f1(j, i);
-                            change = true;
-                        }
-                        if (ans[j][i] === -1 && cnt[j] === 0) {
-                            f0(j, i);
-                            change = true;
-                        }
-                    }
-                }
-
-                if (!change) {
-                    break;
-                }
-            }
-
-            return ans;
-        }
-
-        // 解析函数，与Python版本兼容
-        function parseConstraints(text) {
-            if (!text || !text.trim()) return [];
-
-            // 按行分割，去除首尾空白
-            const lines = text.trim().split('\n');
-
-            return lines.map(line => {
-                // 提取所有数字，使用-1表示未确定的约束
-                const tokens = line.trim().split(/\s+/);
-                const result = [];
-
-                for (const token of tokens) {
-                    if (token === '?') {
-                        result.push(-1); // 使用-1表示未确定的约束
-                    } else if (/\d+/.test(token)) {
-                        result.push(Number(token));
-                    }
-                }
-
-                return result;
-            });
-        }
-
-
-
-        function renderGrid(grid, rowHints, colHints) {
-            const container = document.getElementById('result-area');
-            container.innerHTML = '';
-
-            const rows = grid.length;
-            const cols = grid[0].length;
-
-            const gridEl = document.createElement('div');
-            gridEl.className = 'nono-grid';
-
-            gridEl.style.gridTemplateColumns = `auto repeat(${cols}, var(--cell-size))`;
-            gridEl.style.gridTemplateRows = `auto repeat(${rows}, var(--cell-size))`;
-
-            // 1. 左上角空白
-            const corner = document.createElement('div');
-            corner.className = 'corner';
-            gridEl.appendChild(corner);
-
-            // 2. 顶部列提示
-            for (let c = 0; c < cols; c++) {
-                const hintEl = document.createElement('div');
-                hintEl.className = 'hint col-hint';
-                // 处理包含-1的提示显示
-                const hintContent = colHints[c].map(val => val === -1 ? '?' : val).join('<br>');
-                hintEl.innerHTML = hintContent;
-                gridEl.appendChild(hintEl);
-            }
-
-            // 3. 生成每一行
-            for (let r = 0; r < rows; r++) {
-                // 行提示
-                const rowHintEl = document.createElement('div');
-                rowHintEl.className = 'hint row-hint';
-                // 处理包含-1的提示显示
-                const hintContent = rowHints[r].map(val => val === -1 ? '?' : val).join(' ');
-                rowHintEl.textContent = hintContent;
-                gridEl.appendChild(rowHintEl);
-
-                // 单元格
-                for (let c = 0; c < cols; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    const val = grid[r][c];
-
-                    if (val === FILLED) cell.classList.add('filled');
-                    else if (val === EMPTY) cell.classList.add('empty');
-                    else if (val === UNKNOWN) cell.classList.add('unknown'); // 未知格子显示问号
-
-                    // 粗边框
-                    if ((c + 1) % 5 === 0 && c !== cols - 1) cell.classList.add('border-right');
-                    if ((r + 1) % 5 === 0 && r !== rows - 1) cell.classList.add('border-bottom');
-
-                    gridEl.appendChild(cell);
-                }
-            }
-
-            container.appendChild(gridEl);
-        }
-
-        function loadSample() {
-            // 示例：一个 3x3 的简单图案
-            const sampleRows =
-                `-1
-1 1
-3`;
-            const sampleCols =
-                `-1
-1 1
-3`;
-
-            document.getElementById('row-constraints').value = sampleRows;
-            document.getElementById('col-constraints').value = sampleCols;
-
-            solve();
-        }
-
-        function clearConstraints() {
-            document.getElementById('row-constraints').value = '';
-            document.getElementById('col-constraints').value = '';
-            document.getElementById('result-area').classList.remove('show');
-            document.getElementById('result-area').innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">结果将显示在这里</div>';
-            document.getElementById('status').textContent = '';
-        }
-    </script>
-
+    <footer>
+        <p>游戏求解器工具集 &copy; 2025</p>
+    </footer>
 </body>
 
 </html>
