@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Minesweeper Solver (Optimized)
+// @name         Minesweeper Solver (Advanced - Set Difference)
 // @namespace    http://tampermonkey.net/
-// @version      0.2
-// @description  A script to help solve the minesweeper game on minesweeper.cn
+// @version      0.3
+// @description  Solves minesweeper using Single Cell analysis and Set Difference (1-2-1 patterns)
 // @author       You
 // @match        https://www.minesweeper.cn/*
 // @grant        none
@@ -17,178 +17,222 @@
         const board = window.d;
 
         const canvas = document.getElementById('paf');
-        if (!canvas) {
-            console.error("Minesweeper canvas not found!");
-            return;
-        }
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         const rect = canvas.getBoundingClientRect();
         const cellSize = 25;
 
-        // --- 核心逻辑优化 ---
-        // 使用 Set 存储本次计算中新发现的雷和安全格的坐标 "row,col"
-        // 这样可以在同一次 solve 调用中实现连锁推导
+        // 本次计算新发现的雷和安全格
         const newMines = new Set();
         const newSafes = new Set();
+
         let changed = true;
 
-        // 循环推导，直到没有新的结果产生（连锁反应）
-        // 比如：发现一个雷后，利用这个雷的信息去推导旁边的数字，可能立即发现安全格
-        while (changed) {
-            changed = false;
+        // 获取唯一的Key
+        const getKey = (r, c) => `${r},${c}`;
+        const parseKey = (k) => k.split(',').map(Number);
 
-            for (let i = 0; i < rows; i++) {
-                for (let j = 0; j < cols; j++) {
-                    // 只处理已打开且有数字的格子
-                    if (board[i][j][0] === 1 && board[i][j][2] > 0) {
+        // 获取某个格子的有效未知邻居 (排除已知的安全格)
+        const getAnalysisData = (r, c) => {
+            let unknown = [];
+            let knownMines = 0; // 物理旗子 + 虚拟雷
 
-                        let unknownNeighbors = [];
-                        let knownMineCount = 0; // 包括已插旗 和 本次推断出的雷
+            for (let ni = -1; ni <= 1; ni++) {
+                for (let nj = -1; nj <= 1; nj++) {
+                    if (ni === 0 && nj === 0) continue;
+                    const nr = r + ni, nc = c + nj;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                        const k = getKey(nr, nc);
+                        const isPhysFlag = board[nr][nc][0] === 2;
+                        const isPhysUnopened = board[nr][nc][0] === 0;
+                        const isVirtMine = newMines.has(k);
+                        const isVirtSafe = newSafes.has(k);
 
-                        // 检查周围的8个邻居
-                        for (let ni = -1; ni <= 1; ni++) {
-                            for (let nj = -1; nj <= 1; nj++) {
-                                if (ni === 0 && nj === 0) continue;
-
-                                const r = i + ni;
-                                const c = j + nj;
-
-                                if (r >= 0 && r < rows && c >= 0 && c < cols) {
-                                    const key = `${r},${c}`;
-
-                                    // 状态判断
-                                    const isPhysicalFlag = (board[r][c][0] === 2);
-                                    const isPhysicalUnopened = (board[r][c][0] === 0);
-                                    const isVirtualMine = newMines.has(key);
-                                    const isVirtualSafe = newSafes.has(key);
-
-                                    // 统计已知雷 (物理旗子 OR 推断出的雷)
-                                    if (isPhysicalFlag || isVirtualMine) {
-                                        knownMineCount++;
-                                    }
-
-                                    // 统计未知格子 (物理未打开 AND 不是旗子 AND 没被推断为雷 AND 没被推断为安全)
-                                    // 重点：这里排除了 isVirtualSafe，实现了“计算雷的时候考虑已计算出的非雷”
-                                    else if (isPhysicalUnopened && !isVirtualSafe) {
-                                        unknownNeighbors.push({ r: r, c: c, key: key });
-                                    }
-                                }
-                            }
-                        }
-
-                        const cellValue = board[i][j][2];
-
-                        // 规则1：如果 (已知雷 + 推断雷) == 数字，则剩余所有未知邻居都是安全的
-                        if (knownMineCount === cellValue && unknownNeighbors.length > 0) {
-                            unknownNeighbors.forEach(cell => {
-                                if (!newSafes.has(cell.key)) {
-                                    newSafes.add(cell.key);
-                                    changed = true; // 标记发生变化，需要再次循环
-                                }
-                            });
-                        }
-
-                        // 规则2：如果 (已知雷 + 推断雷) + 剩余未知邻居数 == 数字，则剩余所有未知邻居都是雷
-                        if (knownMineCount + unknownNeighbors.length === cellValue && unknownNeighbors.length > 0) {
-                            unknownNeighbors.forEach(cell => {
-                                if (!newMines.has(cell.key)) {
-                                    newMines.add(cell.key);
-                                    changed = true; // 标记发生变化，需要再次循环
-                                }
-                            });
+                        if (isPhysFlag || isVirtMine) {
+                            knownMines++;
+                        } else if (isPhysUnopened && !isVirtSafe) {
+                            unknown.push(k);
                         }
                     }
                 }
             }
+            return {
+                r, c,
+                val: board[r][c][2],
+                knownMines,
+                remainingNeeded: board[r][c][2] - knownMines,
+                unknownNeighbors: unknown
+            };
+        };
+
+        // 主循环：只要有新发现就继续推导
+        while (changed) {
+            changed = false;
+            let currentChanges = 0;
+
+            // 1. 收集所有边界上的数字格子的信息
+            // 这一点很重要，把所有需要分析的格子数据化
+            let boundaryCells = [];
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    // 只关心已打开且未满足的数字
+                    if (board[i][j][0] === 1 && board[i][j][2] > 0) {
+                        const data = getAnalysisData(i, j);
+                        // 如果已经满足了，跳过
+                        if (data.unknownNeighbors.length === 0 && data.remainingNeeded === 0) continue;
+
+                        // 基础逻辑检查 (Single Square)
+                        if (data.remainingNeeded === 0 && data.unknownNeighbors.length > 0) {
+                            // 剩余雷数0 -> 全是安全
+                            data.unknownNeighbors.forEach(k => {
+                                if (!newSafes.has(k)) { newSafes.add(k); changed = true; currentChanges++; }
+                            });
+                        } else if (data.remainingNeeded === data.unknownNeighbors.length) {
+                            // 剩余雷数=未知格数 -> 全是雷
+                            data.unknownNeighbors.forEach(k => {
+                                if (!newMines.has(k)) { newMines.add(k); changed = true; currentChanges++; }
+                            });
+                        } else {
+                            // 没能直接解开，加入待分析列表
+                            boundaryCells.push(data);
+                        }
+                    }
+                }
+            }
+
+            // 如果基础逻辑已经发现了东西，先不跑高级逻辑，提高效率并防止冲突
+            if (changed) continue;
+
+            // 2. 高级逻辑：集合差分 (Set Difference)
+            // 比较列表中的任意两个格子 A 和 B
+            // 如果 A 的未知邻居是 B 的未知邻居的子集，则可以做减法
+
+            // 为了性能，只比较距离较近的格子 (曼哈顿距离 <= 2 或者 3)
+            // 这里简单点，全量比较（因为 boundaryCells 通常不会特别多），或者只比较重叠的
+
+            for (let i = 0; i < boundaryCells.length; i++) {
+                for (let j = 0; j < boundaryCells.length; j++) {
+                    if (i === j) continue;
+
+                    const A = boundaryCells[i];
+                    const B = boundaryCells[j];
+
+                    // 优化：如果两者距离太远，不可能重叠，跳过
+                    if (Math.abs(A.r - B.r) > 2 || Math.abs(A.c - B.c) > 2) continue;
+
+                    // 检查 A 是否是 B 的子集
+                    // 即：A 的所有未知邻居都在 B 的未知邻居里
+                    // 注意：这里需要精确匹配字符串key
+
+                    // 快速检查长度，A 必须比 B 短或相等
+                    if (A.unknownNeighbors.length > B.unknownNeighbors.length) continue;
+
+                    const setB = new Set(B.unknownNeighbors);
+                    const isSubset = A.unknownNeighbors.every(k => setB.has(k));
+
+                    if (isSubset) {
+                        // 核心数学逻辑
+                        const diffMines = B.remainingNeeded - A.remainingNeeded;
+                        const diffNeighbors = B.unknownNeighbors.filter(k => !A.unknownNeighbors.includes(k));
+
+                        // 差集区域里的情况
+                        if (diffNeighbors.length > 0) {
+                            // 情况 1: B 比 A 多需要的雷数 == 0
+                            // 这意味着 B 所有的雷都在 A 的区域里找到了
+                            // 所以 B 独有的区域全是安全的
+                            if (diffMines === 0) {
+                                diffNeighbors.forEach(k => {
+                                    if (!newSafes.has(k)) {
+                                        newSafes.add(k);
+                                        changed = true;
+                                    }
+                                });
+                            }
+
+                            // 情况 2: B 比 A 多需要的雷数 == B 独有区域的格子数
+                            // 这意味着 B 独有的区域必须全是雷才能满足差额
+                            else if (diffMines === diffNeighbors.length) {
+                                diffNeighbors.forEach(k => {
+                                    if (!newMines.has(k)) {
+                                        newMines.add(k);
+                                        changed = true;
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                if (changed) break; // 如果发现变化，跳出内层循环，重新计算全局状态
+            }
         }
 
-        // --- 执行操作 ---
-        // 所有的推导结束后，统一进行绘制或点击，避免重复操作
-
-        // 1. 标记雷 (绘制红色)
-        newMines.forEach(key => {
-            const [r, c] = key.split(',').map(Number);
-            // 绘制红色标记
+        // --- 执行绘制与点击 ---
+        newMines.forEach(k => {
+            const [r, c] = parseKey(k);
             ctx.fillStyle = 'red';
             ctx.fillRect(c * cellSize + 10, r * cellSize + 10, 5, 5);
-
-            // 可选：如果想自动插旗，可以在这里添加右键点击逻辑
-            // 但为了安全起见，通常只自动点击安全格
         });
 
-        // 2. 点击安全格 (自动点击 或 绘制绿色)
-        newSafes.forEach(key => {
-            const [r, c] = key.split(',').map(Number);
-
-            if (autoClickCheckbox.checked) {
+        newSafes.forEach(k => {
+            const [r, c] = parseKey(k);
+            if (document.getElementById('autoClick').checked) {
                 const x = c * cellSize + cellSize / 2;
                 const y = r * cellSize + cellSize / 2;
-
-                const clickEvent = new MouseEvent('mousedown', {
-                    clientX: rect.left + x,
-                    clientY: rect.top + y,
-                    button: 0 // 左键点击
+                const events = ['mousedown', 'mouseup', 'click'];
+                events.forEach(etype => {
+                    canvas.dispatchEvent(new MouseEvent(etype, {
+                        clientX: rect.left + x,
+                        clientY: rect.top + y,
+                        button: 0,
+                        bubbles: true
+                    }));
                 });
-                const mouseUpEvent = new MouseEvent('mouseup', {
-                    clientX: rect.left + x,
-                    clientY: rect.top + y,
-                    button: 0
-                });
-                // 有些游戏引擎需要完整的 down/up 流程
-                canvas.dispatchEvent(clickEvent);
-                canvas.dispatchEvent(mouseUpEvent);
             } else {
-                ctx.fillStyle = 'green';
-                ctx.fillRect(c * cellSize + 10, r * cellSize + 10, 5, 5);
+                ctx.fillStyle = '#00FF00'; // 亮绿色
+                ctx.fillRect(c * cellSize + 8, r * cellSize + 8, 9, 9);
             }
         });
     }
 
-    // --- UI 构建 (保持不变) ---
+    // --- UI Setup ---
     const controls = document.createElement('div');
-    controls.style.position = 'absolute';
-    controls.style.top = '10px';
-    controls.style.left = '10px';
-    controls.style.zIndex = '1000';
-    controls.style.backgroundColor = 'rgba(255,255,255,0.8)'; // 加个背景色防止看不清
-    controls.style.padding = '5px';
-    controls.style.borderRadius = '5px';
+    Object.assign(controls.style, {
+        position: 'absolute', top: '10px', left: '10px', zIndex: '9999',
+        backgroundColor: 'rgba(0,0,0,0.7)', padding: '10px', borderRadius: '8px', color: 'white',
+        fontFamily: 'Arial, sans-serif'
+    });
 
-    const solveButton = document.createElement('button');
-    solveButton.innerHTML = 'Solve Once';
-    solveButton.onclick = solve;
-    solveButton.style.marginRight = '10px';
+    const btn = document.createElement('button');
+    btn.textContent = '⚡ Solve Step';
+    btn.onclick = solve;
+    Object.assign(btn.style, { marginRight: '10px', padding: '5px 10px', cursor: 'pointer' });
 
-    const autoClickCheckbox = document.createElement('input');
-    autoClickCheckbox.type = 'checkbox';
-    autoClickCheckbox.id = 'autoClick';
-    const autoClickLabel = document.createElement('label');
-    autoClickLabel.innerHTML = 'Auto Click Safe';
-    autoClickLabel.htmlFor = 'autoClick';
-    autoClickLabel.style.marginRight = '10px';
+    const chkClick = document.createElement('input');
+    chkClick.type = 'checkbox';
+    chkClick.id = 'autoClick';
+    const lblClick = document.createElement('label');
+    lblClick.textContent = ' Auto Click';
+    lblClick.htmlFor = 'autoClick';
+    lblClick.style.marginRight = '10px';
 
-    const autoRefreshCheckbox = document.createElement('input');
-    autoRefreshCheckbox.type = 'checkbox';
-    autoRefreshCheckbox.id = 'autoRefresh';
-    const autoRefreshLabel = document.createElement('label');
-    autoRefreshLabel.innerHTML = 'Auto Refresh (Loop)';
-    autoRefreshLabel.htmlFor = 'autoRefresh';
+    const chkLoop = document.createElement('input');
+    chkLoop.type = 'checkbox';
+    chkLoop.id = 'autoLoop';
+    const lblLoop = document.createElement('label');
+    lblLoop.textContent = ' Continuous';
+    lblLoop.htmlFor = 'autoLoop';
 
-    controls.appendChild(solveButton);
-    controls.appendChild(autoClickCheckbox);
-    controls.appendChild(autoClickLabel);
-    controls.appendChild(autoRefreshCheckbox);
-    controls.appendChild(autoRefreshLabel);
+    controls.append(btn, chkClick, lblClick, chkLoop, lblLoop);
     document.body.appendChild(controls);
 
-    let solveInterval = null;
-    autoRefreshCheckbox.addEventListener('change', (event) => {
-        if (event.currentTarget.checked) {
-            // 稍微加快一点频率，因为现在的算法单次效率更高
-            solveInterval = setInterval(solve, 800);
-            solve(); // 立即执行一次
+    let timer = null;
+    chkLoop.onchange = (e) => {
+        if (e.target.checked) {
+            timer = setInterval(solve, 500);
+            solve();
         } else {
-            clearInterval(solveInterval);
+            clearInterval(timer);
         }
-    });
+    };
 })();
