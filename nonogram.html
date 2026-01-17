@@ -564,323 +564,71 @@
             }
         }
 
-
-
-
-
-
-
         // 通过代理执行点击命令
-
-
-
-
-
-
 
         async function executeTap(x, y) {
 
-
-
-
-
-
-
             if (!proxyConnected) {
-
-
-
-
-
-
 
                 throw new Error('代理服务器未连接，请先点击"测试连接"');
 
-
-
-
-
-
-
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             const command = `input tap ${x} ${y}`;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             try {
-
-
-
-
-
-
 
                 const response = await fetch(`${proxyUrl}/execute`, {
 
-
-
-
-
-
-
                     method: 'POST',
-
-
-
-
-
-
 
                     headers: {
 
-
-
-
-
-
-
                         'Content-Type': 'application/json'
-
-
-
-
-
-
 
                     },
 
-
-
-
-
-
-
                     body: JSON.stringify({ command })
-
-
-
-
-
-
 
                 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 if (!response.ok) {
-
-
-
-
-
-
 
                     const errorData = await response.json();
 
-
-
-
-
-
-
                     throw new Error(errorData.message || '命令执行失败');
 
-
-
-
-
-
-
                 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                 const result = await response.json();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 if (result.returncode !== 0) {
-
-
-
-
-
-
 
                     throw new Error(`命令执行失败: ${result.stderr || result.stdout}`);
 
-
-
-
-
-
-
                 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                 return result;
 
-
-
-
-
-
-
             } catch (error) {
-
-
-
-
-
-
 
                 if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
 
-
-
-
-
-
-
                     proxyConnected = false;
-
-
-
-
-
-
 
                     const statusEl = document.getElementById('device-status');
 
-
-
-
-
-
-
                     statusEl.textContent = '⚠ 代理服务器连接中断';
-
-
-
-
-
-
 
                     statusEl.className = 'device-disconnected';
 
-
-
-
-
-
-
                 }
-
-
-
-
-
-
 
                 throw error;
 
-
-
-
-
-
-
             }
 
-
-
-
-
-
-
         }
-
-
-
-
-
-
 
         // 连接设备
         async function connectDevice() {
@@ -1576,8 +1324,6 @@
                 return result;
             });
         }
-
-
 
         function renderGrid(grid, rowHints, colHints) {
             const container = document.getElementById('result-area');
