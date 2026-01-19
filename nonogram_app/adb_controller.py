@@ -112,3 +112,43 @@ class ADBController:
             time.sleep(0.01)
 
         return success_count, fail_count
+
+    def screenshot(self, output_path: str = "screenshot.png") -> Tuple[bool, str]:
+        """
+        截取手机屏幕
+
+        Args:
+            output_path: 截图保存路径
+
+        Returns:
+            (是否成功, 消息)
+        """
+        if not self.device_serial:
+            return False, "设备未连接"
+
+        try:
+            result = subprocess.run(
+                ['adb', 'shell', 'screencap', '-p', '/sdcard/screenshot.png'],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode != 0:
+                return False, f"截图失败: {result.stderr or result.stdout}"
+
+            # 拉取截图到本地
+            result = subprocess.run(
+                ['adb', 'pull', '/sdcard/screenshot.png', output_path],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode != 0:
+                return False, f"拉取截图失败: {result.stderr or result.stdout}"
+
+            return True, output_path
+
+        except subprocess.TimeoutExpired:
+            return False, "截图命令执行超时"
+        except Exception as e:
+            return False, f"截图失败: {str(e)}"

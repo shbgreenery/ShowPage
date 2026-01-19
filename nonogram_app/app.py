@@ -6,6 +6,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 import threading
+from typing import List
 
 from .constants import (
     UNKNOWN, FILLED, EMPTY,
@@ -16,6 +17,7 @@ from .adb_controller import ADBController
 from .config_manager import ConfigManager
 from .grid_renderer import GridRenderer
 from .input_parser import InputParser
+from .image_analyzer import ImageAnalyzer
 
 
 class NonogramApp(ctk.CTk):
@@ -28,6 +30,7 @@ class NonogramApp(ctk.CTk):
         self.config_manager = ConfigManager()
         self.adb_controller = ADBController()
         self.input_parser = InputParser()
+        self.image_analyzer = ImageAnalyzer()
         self.grid_renderer = None
 
         # 数据
@@ -65,7 +68,8 @@ class NonogramApp(ctk.CTk):
 
         # 右侧面板
         right_panel = self._create_right_panel(main_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH,
+                         expand=True, padx=5, pady=5)
 
     def _create_left_panel(self, parent) -> ctk.CTkFrame:
         """创建左侧面板"""
@@ -97,12 +101,14 @@ class NonogramApp(ctk.CTk):
     def _create_constraint_inputs(self, parent):
         """创建约束输入区域"""
         # 行约束
-        ctk.CTkLabel(parent, text="行约束 (Row Hints):", font=ctk.CTkFont(weight="bold", family="Cascadia Code")).pack(anchor="w", padx=10)
+        ctk.CTkLabel(parent, text="行约束 (Row Hints):", font=ctk.CTkFont(
+            weight="bold", family="Cascadia Code")).pack(anchor="w", padx=10)
         self.row_text = ctk.CTkTextbox(parent, height=150, width=280)
         self.row_text.pack(padx=10, pady=5)
 
         # 列约束
-        ctk.CTkLabel(parent, text="列约束 (Column Hints):", font=ctk.CTkFont(weight="bold", family="Cascadia Code")).pack(anchor="w", padx=10)
+        ctk.CTkLabel(parent, text="列约束 (Column Hints):", font=ctk.CTkFont(
+            weight="bold", family="Cascadia Code")).pack(anchor="w", padx=10)
         self.col_text = ctk.CTkTextbox(parent, height=150, width=280)
         self.col_text.pack(padx=10, pady=5)
 
@@ -111,20 +117,26 @@ class NonogramApp(ctk.CTk):
         button_frame = ctk.CTkFrame(parent)
         button_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        ctk.CTkButton(button_frame, text="开始求解", command=self.solve).pack(fill=tk.X, pady=2)
-        ctk.CTkButton(button_frame, text="加载示例", command=self.load_sample).pack(fill=tk.X, pady=2)
-        ctk.CTkButton(button_frame, text="清空", command=self.clear_constraints).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(button_frame, text="开始求解",
+                      command=self.solve).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(button_frame, text="加载示例",
+                      command=self.load_sample).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(button_frame, text="清空",
+                      command=self.clear_constraints).pack(fill=tk.X, pady=2)
 
     def _create_adb_config(self, parent):
         """创建 ADB 配置区域"""
         adb_frame = ctk.CTkFrame(parent)
         adb_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        ctk.CTkLabel(adb_frame, text="📱 ADB 点击配置", font=ctk.CTkFont(weight="bold", family="Cascadia Code")).pack(pady=5)
+        ctk.CTkLabel(adb_frame, text="📱 ADB 点击配置", font=ctk.CTkFont(
+            weight="bold", family="Cascadia Code")).pack(pady=5)
 
         # 连接测试
-        ctk.CTkButton(adb_frame, text="🧪 测试连接", command=self.test_adb).pack(fill=tk.X, padx=10, pady=5)
-        self.adb_status_label = ctk.CTkLabel(adb_frame, text="未测试连接", font=ctk.CTkFont(size=10, family="Cascadia Code"))
+        ctk.CTkButton(adb_frame, text="🧪 测试连接", command=self.test_adb).pack(
+            fill=tk.X, padx=10, pady=5)
+        self.adb_status_label = ctk.CTkLabel(
+            adb_frame, text="未测试连接", font=ctk.CTkFont(size=10, family="Cascadia Code"))
         self.adb_status_label.pack(pady=5)
 
         # 坐标配置
@@ -140,6 +152,14 @@ class NonogramApp(ctk.CTk):
             command=self._save_config
         )
         self.auto_tap_check.pack(pady=5)
+
+        # 截图分析按钮
+        ctk.CTkButton(
+            adb_frame,
+            text="📸 截图并分析约束",
+            fg_color="#2196f3",
+            command=self.capture_and_analyze
+        ).pack(fill=tk.X, padx=10, pady=5)
 
         # 批量点击按钮
         ctk.CTkButton(
@@ -201,11 +221,14 @@ class NonogramApp(ctk.CTk):
         """求解数织"""
         try:
             # 解析输入
-            self.rows_input = self.input_parser.parse_constraints(self.row_text.get("1.0", tk.END))
-            self.cols_input = self.input_parser.parse_constraints(self.col_text.get("1.0", tk.END))
+            self.rows_input = self.input_parser.parse_constraints(
+                self.row_text.get("1.0", tk.END))
+            self.cols_input = self.input_parser.parse_constraints(
+                self.col_text.get("1.0", tk.END))
 
             # 验证约束
-            is_valid, error_msg = self.input_parser.validate_constraints(self.rows_input, self.cols_input)
+            is_valid, error_msg = self.input_parser.validate_constraints(
+                self.rows_input, self.cols_input)
             if not is_valid:
                 messagebox.showerror("错误", error_msg)
                 return
@@ -221,8 +244,10 @@ class NonogramApp(ctk.CTk):
 
                     # 在主线程中更新 UI
                     def update_ui():
-                        self.grid_renderer.render(self.grid, self.rows_input, self.cols_input)
-                        self.status_label.configure(text="求解成功！", text_color="green")
+                        self.grid_renderer.render(
+                            self.grid, self.rows_input, self.cols_input)
+                        self.status_label.configure(
+                            text="求解成功！", text_color="green")
                         self._save_config()
 
                     self.after(0, update_ui)
@@ -230,12 +255,14 @@ class NonogramApp(ctk.CTk):
                 except ValueError as e:
                     def show_error():
                         messagebox.showerror("错误", str(e))
-                        self.status_label.configure(text=f"错误: {str(e)}", text_color="red")
+                        self.status_label.configure(
+                            text=f"错误: {str(e)}", text_color="red")
                     self.after(0, show_error)
                 except Exception as e:
                     def show_error():
                         messagebox.showerror("错误", f"求解失败: {str(e)}")
-                        self.status_label.configure(text=f"错误: {str(e)}", text_color="red")
+                        self.status_label.configure(
+                            text=f"错误: {str(e)}", text_color="red")
                     self.after(0, show_error)
 
             threading.Thread(target=solve_thread, daemon=True).start()
@@ -267,7 +294,8 @@ class NonogramApp(ctk.CTk):
                         text_color="yellow"
                     )
 
-                    success, msg = self.adb_controller.execute_tap(screen_x, screen_y)
+                    success, msg = self.adb_controller.execute_tap(
+                        screen_x, screen_y)
 
                     def update_status():
                         if success:
@@ -307,15 +335,18 @@ class NonogramApp(ctk.CTk):
 
                 def update_ui():
                     if connected:
-                        self.adb_status_label.configure(text=msg, text_color="green")
+                        self.adb_status_label.configure(
+                            text=msg, text_color="green")
                     else:
-                        self.adb_status_label.configure(text=msg, text_color="red")
+                        self.adb_status_label.configure(
+                            text=msg, text_color="red")
 
                 self.after(0, update_ui)
 
             except Exception as e:
                 def show_error():
-                    self.adb_status_label.configure(text=f"测试失败: {str(e)}", text_color="red")
+                    self.adb_status_label.configure(
+                        text=f"测试失败: {str(e)}", text_color="red")
 
                 self.after(0, show_error)
 
@@ -360,10 +391,12 @@ class NonogramApp(ctk.CTk):
         def batch_tap_thread():
             def progress_callback(current, total, msg):
                 def update():
-                    self.adb_status_label.configure(text=f"{msg} ({current}/{total})", text_color="yellow")
+                    self.adb_status_label.configure(
+                        text=f"{msg} ({current}/{total})", text_color="yellow")
                 self.after(0, update)
 
-            success_count, fail_count = self.adb_controller.batch_tap(filled_cells, progress_callback)
+            success_count, fail_count = self.adb_controller.batch_tap(
+                filled_cells, progress_callback)
 
             def final_update():
                 if fail_count == 0:
@@ -380,6 +413,73 @@ class NonogramApp(ctk.CTk):
             self.after(0, final_update)
 
         threading.Thread(target=batch_tap_thread, daemon=True).start()
+
+    def capture_and_analyze(self):
+        """截图并分析约束"""
+        if not self.adb_controller.connected:
+            messagebox.showwarning("警告", "请先测试 ADB 连接！")
+            return
+
+        self.adb_status_label.configure(text="正在截图...", text_color="yellow")
+
+        def analyze_thread():
+            # 截图
+            success, result = self.adb_controller.screenshot("screenshot.png")
+
+            if not success:
+                def show_error():
+                    messagebox.showerror("截图失败", result)
+                    self.adb_status_label.configure(
+                        text="截图失败", text_color="red")
+                self.after(0, show_error)
+                return
+
+            def update_status():
+                self.adb_status_label.configure(
+                    text="正在分析图片...", text_color="yellow")
+            self.after(0, update_status)
+
+            # 分析图片
+            my_grid = (180, 890, 940, 940)
+            row_hints, col_hints, error_msg = self.image_analyzer.analyze_screenshot(
+                result, manual_grid=my_grid)
+
+            def update_ui():
+                if error_msg:
+                    messagebox.showerror("分析失败", error_msg)
+                    self.adb_status_label.configure(
+                        text="分析失败", text_color="red")
+                    return
+
+                # 填充约束到界面
+                self._fill_constraints(row_hints, col_hints)
+
+                self.adb_status_label.configure(
+                    text=f"✓ 成功提取 {len(row_hints)} 行 {len(col_hints)} 列约束", text_color="green")
+
+            self.after(0, update_ui)
+
+        threading.Thread(target=analyze_thread, daemon=True).start()
+
+    def _fill_constraints(self, row_hints: List[List[int]], col_hints: List[List[int]]):
+        """
+        将约束填充到界面
+
+        Args:
+            row_hints: 行约束
+            col_hints: 列约束
+        """
+        # 填充行约束
+        row_text = "\n".join(" ".join(str(num) for num in row)
+                             for row in row_hints)
+        self.row_text.delete("1.0", tk.END)
+        self.row_text.insert("1.0", row_text)
+
+        # 填充列约束
+        col_text = "\n".join(" ".join(str(num) for num in col)
+                             for col in col_hints)
+        self.col_text.delete("1.0", tk.END)
+        self.col_text.insert("1.0", col_text)
 
     def load_sample(self):
         """加载示例"""
