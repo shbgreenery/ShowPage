@@ -82,13 +82,12 @@ class ADBController:
         except Exception as e:
             return False, f"点击失败: {str(e)}"
 
-    def batch_tap(self, coordinates: list, progress_callback=None) -> Tuple[int, int]:
+    def batch_tap(self, coordinates: list) -> Tuple[int, int]:
         """
         批量点击
 
         Args:
             coordinates: 坐标列表 [(row, col, x, y), ...]
-            progress_callback: 进度回调函数 (current, total, message)
 
         Returns:
             (成功数, 失败数)
@@ -96,11 +95,7 @@ class ADBController:
         success_count = 0
         fail_count = 0
 
-        for i, (r, c, x, y) in enumerate(coordinates):
-            if progress_callback:
-                progress_callback(i + 1, len(coordinates),
-                                  f"正在点击 ({r + 1}, {c + 1})...")
-
+        for r, c, x, y in coordinates:
             success, _ = self.execute_tap(x, y)
             if success:
                 success_count += 1

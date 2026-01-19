@@ -102,11 +102,6 @@ class ImageAnalyzer:
         binary = cv2.copyMakeBorder(
             binary, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
 
-        # 调试：查看最终喂给 OCR 的图
-        # 此时你应该看到 Col 的图片也变成了横排！
-        if self.debug and ("col_0" in debug_id or "row_0" in debug_id):
-            cv2.imwrite(f"debug_ocr_final_{debug_id}.jpg", binary)
-
         # 5. OCR
         text = pytesseract.image_to_string(
             binary, config=self.tesseract_config)
@@ -208,19 +203,6 @@ class ImageAnalyzer:
         return output
 
 
-if __name__ == "__main__":
-    analyzer = ImageAnalyzer()
-    img_path = "page2.jpg"
-    my_grid = (180, 890, 940, 940)
-
-    if os.path.exists(img_path):
-        r, c, err = analyzer.analyze_screenshot(img_path, manual_grid=my_grid)
-        if not err:
-            print("\nRow 1 结果:", r[0])
-            print("Col 1 结果:", c[0])
-        else:
-            print(err)
-# === 主程序 ===
 if __name__ == "__main__":
     analyzer = ImageAnalyzer()
 

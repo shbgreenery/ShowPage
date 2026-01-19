@@ -38,6 +38,9 @@ class NonogramApp(ctk.CTk):
         self.cols_input = []
         self.grid = None
 
+        # 线程管理
+        self.is_solving = False
+
         # 设置窗口
         self._setup_window()
 
@@ -219,12 +222,22 @@ class NonogramApp(ctk.CTk):
 
     def solve(self):
         """求解数织"""
+        # 检查是否正在求解
+        if self.is_solving:
+            messagebox.showwarning("警告", "正在求解中，请稍候...")
+            return
+
         try:
             # 解析输入
-            self.rows_input = self.input_parser.parse_constraints(
-                self.row_text.get("1.0", tk.END))
-            self.cols_input = self.input_parser.parse_constraints(
-                self.col_text.get("1.0", tk.END))
+            row_text = self.row_text.get("1.0", tk.END).strip()
+            col_text = self.col_text.get("1.0", tk.END).strip()
+
+            if not row_text or not col_text:
+                messagebox.showerror("错误", "请输入行约束和列约束")
+                return
+
+            self.rows_input = self.input_parser.parse_constraints(row_text)
+            self.cols_input = self.input_parser.parse_constraints(col_text)
 
             # 验证约束
             is_valid, error_msg = self.input_parser.validate_constraints(
@@ -232,6 +245,9 @@ class NonogramApp(ctk.CTk):
             if not is_valid:
                 messagebox.showerror("错误", error_msg)
                 return
+
+            # 设置求解标志
+            self.is_solving = True
 
             # 在后台线程中求解
             self.status_label.configure(text="正在求解...", text_color="yellow")
@@ -249,6 +265,7 @@ class NonogramApp(ctk.CTk):
                         self.status_label.configure(
                             text="求解成功！", text_color="green")
                         self._save_config()
+                        self.is_solving = False
 
                     self.after(0, update_ui)
 
@@ -257,12 +274,14 @@ class NonogramApp(ctk.CTk):
                         messagebox.showerror("错误", str(e))
                         self.status_label.configure(
                             text=f"错误: {str(e)}", text_color="red")
+                        self.is_solving = False
                     self.after(0, show_error)
                 except Exception as e:
                     def show_error():
                         messagebox.showerror("错误", f"求解失败: {str(e)}")
                         self.status_label.configure(
                             text=f"错误: {str(e)}", text_color="red")
+                        self.is_solving = False
                     self.after(0, show_error)
 
             threading.Thread(target=solve_thread, daemon=True).start()
@@ -270,6 +289,7 @@ class NonogramApp(ctk.CTk):
         except Exception as e:
             messagebox.showerror("错误", f"求解失败: {str(e)}")
             self.status_label.configure(text=f"错误: {str(e)}", text_color="red")
+            self.is_solving = False
 
     def _on_grid_click(self, row: int, col: int, value: int):
         """处理网格点击"""
@@ -289,28 +309,37 @@ class NonogramApp(ctk.CTk):
             if self.adb_controller.connected and self.auto_tap_var.get():
                 # 在后台线程中执行点击
                 def tap_thread():
-                    self.adb_status_label.configure(
-                        text=f"正在点击 ({row + 1}, {col + 1})...",
-                        text_color="yellow"
-                    )
+                    try:
+                        self.adb_status_label.configure(
+                            text=f"正在点击 ({row + 1}, {col + 1})...",
+                            text_color="yellow"
+                        )
 
-                    success, msg = self.adb_controller.execute_tap(
-                        screen_x, screen_y)
+                        success, msg = self.adb_controller.execute_tap(
+                            screen_x, screen_y)
 
-                    def update_status():
-                        if success:
-                            self.adb_status_label.configure(
-                                text=f"✓ 已点击 ({row + 1}, {col + 1})",
-                                text_color="green"
-                            )
-                        else:
-                            messagebox.showerror("点击失败", msg)
+                        def update_status():
+                            if success:
+                                self.adb_status_label.configure(
+                                    text=f"✓ 已点击 ({row + 1}, {col + 1})",
+                                    text_color="green"
+                                )
+                            else:
+                                messagebox.showerror("点击失败", msg)
+                                self.adb_status_label.configure(
+                                    text=f"✗ 点击失败",
+                                    text_color="red"
+                                )
+
+                        self.after(0, update_status)
+                    except Exception as e:
+                        def show_error():
+                            messagebox.showerror("点击失败", f"执行出错: {str(e)}")
                             self.adb_status_label.configure(
                                 text=f"✗ 点击失败",
                                 text_color="red"
                             )
-
-                    self.after(0, update_status)
+                        self.after(0, show_error)
 
                 threading.Thread(target=tap_thread, daemon=True).start()
             else:
@@ -388,29 +417,27 @@ class NonogramApp(ctk.CTk):
             return
 
         # 批量点击
+        self.adb_status_label.configure(text="点击中...", text_color="yellow")
+
         def batch_tap_thread():
-            def progress_callback(current, total, msg):
-                def update():
-                    self.adb_status_label.configure(
-                        text=f"{msg} ({current}/{total})", text_color="yellow")
-                self.after(0, update)
+            try:
+                self.adb_controller.batch_tap(filled_cells)
 
-            success_count, fail_count = self.adb_controller.batch_tap(
-                filled_cells, progress_callback)
-
-            def final_update():
-                if fail_count == 0:
+                def final_update():
                     self.adb_status_label.configure(
-                        text=f"✓ 批量点击完成！成功 {success_count} 个",
+                        text="✓ 点击完成",
                         text_color="green"
                     )
-                else:
-                    self.adb_status_label.configure(
-                        text=f"⚠ 批量点击完成！成功 {success_count} 个，失败 {fail_count} 个",
-                        text_color="orange"
-                    )
 
-            self.after(0, final_update)
+                self.after(0, final_update)
+            except Exception as e:
+                def show_error():
+                    messagebox.showerror("点击失败", f"批量点击出错: {str(e)}")
+                    self.adb_status_label.configure(
+                        text="✗ 点击失败",
+                        text_color="red"
+                    )
+                self.after(0, show_error)
 
         threading.Thread(target=batch_tap_thread, daemon=True).start()
 
@@ -423,41 +450,48 @@ class NonogramApp(ctk.CTk):
         self.adb_status_label.configure(text="正在截图...", text_color="yellow")
 
         def analyze_thread():
-            # 截图
-            success, result = self.adb_controller.screenshot("screenshot.png")
+            try:
+                # 截图
+                success, result = self.adb_controller.screenshot("screenshot.png")
 
-            if not success:
-                def show_error():
-                    messagebox.showerror("截图失败", result)
-                    self.adb_status_label.configure(
-                        text="截图失败", text_color="red")
-                self.after(0, show_error)
-                return
-
-            def update_status():
-                self.adb_status_label.configure(
-                    text="正在分析图片...", text_color="yellow")
-            self.after(0, update_status)
-
-            # 分析图片
-            my_grid = (180, 890, 940, 940)
-            row_hints, col_hints, error_msg = self.image_analyzer.analyze_screenshot(
-                result, manual_grid=my_grid)
-
-            def update_ui():
-                if error_msg:
-                    messagebox.showerror("分析失败", error_msg)
-                    self.adb_status_label.configure(
-                        text="分析失败", text_color="red")
+                if not success:
+                    def show_error():
+                        messagebox.showerror("截图失败", result)
+                        self.adb_status_label.configure(
+                            text="截图失败", text_color="red")
+                    self.after(0, show_error)
                     return
 
-                # 填充约束到界面
-                self._fill_constraints(row_hints, col_hints)
+                def update_status():
+                    self.adb_status_label.configure(
+                        text="正在分析图片...", text_color="yellow")
+                self.after(0, update_status)
 
-                self.adb_status_label.configure(
-                    text=f"✓ 成功提取 {len(row_hints)} 行 {len(col_hints)} 列约束", text_color="green")
+                # 分析图片
+                my_grid = (180, 890, 940, 940)
+                row_hints, col_hints, error_msg = self.image_analyzer.analyze_screenshot(
+                    result, manual_grid=my_grid)
 
-            self.after(0, update_ui)
+                def update_ui():
+                    if error_msg:
+                        messagebox.showerror("分析失败", error_msg)
+                        self.adb_status_label.configure(
+                            text="分析失败", text_color="red")
+                        return
+
+                    # 填充约束到界面
+                    self._fill_constraints(row_hints, col_hints)
+
+                    self.adb_status_label.configure(
+                        text=f"✓ 成功提取 {len(row_hints)} 行 {len(col_hints)} 列约束", text_color="green")
+
+                self.after(0, update_ui)
+            except Exception as e:
+                def show_error():
+                    messagebox.showerror("分析失败", f"执行出错: {str(e)}")
+                    self.adb_status_label.configure(
+                        text="分析失败", text_color="red")
+                self.after(0, show_error)
 
         threading.Thread(target=analyze_thread, daemon=True).start()
 
@@ -503,6 +537,7 @@ class NonogramApp(ctk.CTk):
             self.grid_renderer.clear()
         self.grid = None
         self.status_label.configure(text="")
+        self.is_solving = False  # 重置求解标志
 
     def _save_config(self):
         """保存配置"""
