@@ -451,19 +451,19 @@
 
         // ADB 配置
         let adbConfig = {
-            startX: 100,
-            startY: 300,
-            cellWidth: 40,
-            cellHeight: 40,
+            startX: 180,
+            startY: 890,
+            cellWidth: 62,
+            cellHeight: 62,
             autoTap: true
         };
 
         // 保存配置到 localStorage
         function saveConfig() {
-            adbConfig.startX = parseInt(document.getElementById('start-x').value) || 100;
-            adbConfig.startY = parseInt(document.getElementById('start-y').value) || 300;
-            adbConfig.cellWidth = parseInt(document.getElementById('cell-width').value) || 40;
-            adbConfig.cellHeight = parseInt(document.getElementById('cell-height').value) || 40;
+            adbConfig.startX = parseInt(document.getElementById('start-x').value) || 180;
+            adbConfig.startY = parseInt(document.getElementById('start-y').value) || 890;
+            adbConfig.cellWidth = parseInt(document.getElementById('cell-width').value) || 62;
+            adbConfig.cellHeight = parseInt(document.getElementById('cell-height').value) || 62;
             adbConfig.autoTap = document.getElementById('auto-tap').checked;
             proxyUrl = document.getElementById('proxy-url').value;
             localStorage.setItem('adbConfig', JSON.stringify(adbConfig));

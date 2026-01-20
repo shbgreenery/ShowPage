@@ -75,6 +75,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 if not command.startswith('input tap '):
                     raise ValueError('只允许 input tap 命令')
 
+                self.log_message(f'执行命令：{command}')
+
                 # 执行 ADB 命令
                 result = subprocess.run(
                     ['adb', 'shell', command],
