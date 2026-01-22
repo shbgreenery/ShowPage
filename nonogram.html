@@ -102,7 +102,7 @@
             color: var(--text-primary);
         }
 
-        .input-section > p {
+        .input-section>p {
             font-size: 13px;
             color: var(--text-secondary);
             line-height: 1.5;
@@ -123,46 +123,68 @@
 
         .controls {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .control-row {
+            display: flex;
             gap: 8px;
-            margin-top: 8px;
         }
 
         button {
-            padding: 10px 16px;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
+            flex: 1;
+            padding: 9px 14px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: all 0.15s ease;
-            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 0;
         }
 
         button:hover:not(:disabled) {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         button:active:not(:disabled) {
-            transform: translateY(0);
+            transform: translateY(1px);
         }
 
         button:disabled {
-            background-color: var(--text-muted);
+            opacity: 0.4;
             cursor: not-allowed;
-            opacity: 0.6;
         }
 
-        button.secondary {
-            background-color: var(--bg-tertiary);
-            color: var(--text-secondary);
+        button.btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
         }
 
-        button.secondary:hover:not(:disabled) {
-            background-color: var(--border-color);
+        button.btn-primary:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+
+        button.btn-warning {
+            background-color: rgba(245, 158, 11, 0.08);
+            color: #d97706;
+            border-color: #f59e0b;
+        }
+
+        button.btn-warning:hover:not(:disabled) {
+            background-color: rgba(245, 158, 11, 0.15);
         }
 
         #result-area {
@@ -294,7 +316,7 @@
             gap: 6px;
         }
 
-        .adb-config > div:first-of-type {
+        .adb-config>div:first-of-type {
             padding: 10px 12px;
             background: rgba(59, 130, 246, 0.08);
             border: 1px solid rgba(59, 130, 246, 0.2);
@@ -305,11 +327,11 @@
             margin-bottom: 16px;
         }
 
-        .adb-config > div:first-of-type strong {
+        .adb-config>div:first-of-type strong {
             font-weight: 600;
         }
 
-        .adb-config > div:first-of-type code {
+        .adb-config>div:first-of-type code {
             background: rgba(59, 130, 246, 0.15);
             padding: 2px 6px;
             border-radius: 4px;
@@ -461,6 +483,111 @@
         .device-connecting {
             color: var(--warning) !important;
         }
+
+        /* 弹窗样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.2s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+        }
+
+        .modal-close:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-body .adb-config {
+            background: none;
+            padding: 0;
+            margin-top: 0;
+            border: none;
+        }
+
+        .modal-body .adb-config h3 {
+            display: none;
+        }
+
+        .modal-body .adb-config>div:first-of-type {
+            padding: 12px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-color);
+        }
     </style>
 </head>
 
@@ -470,7 +597,7 @@
 
     <div class="container">
         <div class="input-section">
-            <p style="font-size: 0.9em; color: #666;">请输入约束数字，每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。最多20行，每行最多20字符。</p>
+            <p style="font-size: 0.9em; color: #666;">每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。</p>
 
             <label for="row-constraints">行约束 (Row Hints):</label>
             <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
@@ -479,41 +606,18 @@
             <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
 
             <div class="controls">
-                <button onclick="solve()">开始求解</button>
-                <button class="secondary" onclick="loadSample()">加载示例</button>
-                <button class="secondary" onclick="clearConstraints()">清空</button>
+                <div class="control-row">
+                    <button class="btn-primary" onclick="solve()">求解</button>
+                    <button onclick="loadSample()">示例</button>
+                    <button onclick="clearConstraints()">清空</button>
+                </div>
+                <div class="control-row">
+                    <button class="btn-warning" onclick="batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
+                    <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
+                    <button onclick="openAdbModal()">ADB 设置</button>
+                </div>
             </div>
             <div id="status" class="status-msg"></div>
-
-            <!-- ADB 配置面板 -->
-            <div class="adb-config">
-                <h3>📱 ADB 点击配置</h3>
-                <div
-                    style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
-                    <strong>使用步骤：</strong><br>
-                    1. 在终端运行：<code>python3 adb_proxy.py</code><br>
-                    2. 确保手机已连接并开启 USB 调试<br>
-                    3. 点击"测试连接"验证<br>
-                    4. 连接成功后点击格子即可自动点击
-                </div>
-                <div class="config-row">
-                    <div class="config-group">
-                        <label>代理服务器地址</label>
-                        <input type="text" id="proxy-url" value="http://localhost:8085"
-                            placeholder="http://localhost:8085" onchange="saveConfig()">
-                    </div>
-                </div>
-                <div class="config-row" style="margin-top: 10px;">
-                    <button onclick="testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
-                </div>
-                <div class="config-row" style="margin-top: 10px;">
-                    <button onclick="batchTapAllFilled()" style="flex: 1;"
-                        id="batch-tap-btn">🎯 批量点击所有填充格子</button>
-                </div>
-                <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                    未测试连接
-                </div>
-            </div>
         </div>
 
         <div id="result-area"
@@ -1076,7 +1180,7 @@
 
             // 禁用按钮
             batchBtn.disabled = true;
-            batchBtn.textContent = '🎯 批量点击中...';
+            batchBtn.textContent = '点击中...';
 
             let successCount = 0;
             let failCount = 0;
@@ -1100,7 +1204,89 @@
 
             // 恢复状态
             batchBtn.disabled = false;
-            batchBtn.textContent = '🎯 批量点击所有填充格子';
+            batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> 点击填充格';
+
+            if (failCount === 0) {
+                statusEl.textContent = `✓ 批量点击完成！成功 ${successCount} 个`;
+                statusEl.className = 'device-connected';
+            } else {
+                statusEl.textContent = `⚠ 批量点击完成！成功 ${successCount} 个，失败 ${failCount} 个`;
+                statusEl.className = 'device-disconnected';
+            }
+
+            // 3秒后恢复状态
+            setTimeout(() => {
+                if (proxyConnected) {
+                    statusEl.textContent = `✓ 代理已连接`;
+                    statusEl.className = 'device-connected';
+                }
+            }, 3000);
+        }
+
+        // 批量点击所有空格子
+        async function batchTapAllEmpty() {
+            const statusEl = document.getElementById('device-status');
+            const batchBtn = document.getElementById('batch-tap-empty-btn');
+
+            if (!currentGrid) {
+                alert('请先求解数织！');
+                return;
+            }
+
+            if (!proxyConnected) {
+                alert('请先点击"测试连接"！');
+                return;
+            }
+
+            // 收集所有空格子的坐标
+            const emptyCells = [];
+            for (let r = 0; r < currentGrid.length; r++) {
+                for (let c = 0; c < currentGrid[r].length; c++) {
+                    if (currentGrid[r][c] === EMPTY) {
+                        const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
+                        const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
+                        emptyCells.push({ row: r, col: c, x: screenX, y: screenY });
+                    }
+                }
+            }
+
+            if (emptyCells.length === 0) {
+                alert('没有空格子！');
+                return;
+            }
+
+            // 确认操作
+            if (!confirm(`准备批量点击 ${emptyCells.length} 个空格子，确定继续吗？`)) {
+                return;
+            }
+
+            // 禁用按钮
+            batchBtn.disabled = true;
+            batchBtn.textContent = '点击中...';
+
+            let successCount = 0;
+            let failCount = 0;
+
+            // 依次点击每个格子
+            for (let i = 0; i < emptyCells.length; i++) {
+                const cell = emptyCells[i];
+                statusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${emptyCells.length})`;
+                statusEl.className = 'device-connecting';
+
+                try {
+                    await executeTap(cell.x, cell.y);
+                    successCount++;
+                    // 添加小延迟，避免点击过快
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    console.error(`点击 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
+                    failCount++;
+                }
+            }
+
+            // 恢复状态
+            batchBtn.disabled = false;
+            batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg> 点击空格';
 
             if (failCount === 0) {
                 statusEl.textContent = `✓ 批量点击完成！成功 ${successCount} 个`;
@@ -1562,7 +1748,74 @@
 
             document.body.removeChild(textarea);
         }
+
+        // 打开 ADB 设置弹窗
+        function openAdbModal() {
+            document.getElementById('adb-modal-overlay').classList.add('show');
+        }
+
+        // 关闭 ADB 设置弹窗
+        function closeAdbModal() {
+            document.getElementById('adb-modal-overlay').classList.remove('show');
+        }
+
+        // 点击遮罩层关闭弹窗
+        document.getElementById('adb-modal-overlay').addEventListener('click', function (e) {
+            if (e.target === this) {
+                closeAdbModal();
+            }
+        });
+
+        // ESC 键关闭弹窗
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                closeAdbModal();
+            }
+        });
     </script>
+
+    <!-- ADB 设置弹窗 -->
+    <div id="adb-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📱 ADB 点击配置</h3>
+                <button class="modal-close" onclick="closeAdbModal()">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="adb-config">
+                    <div
+                        style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
+                        <strong>使用步骤：</strong><br>
+                        1. 在终端运行：<code>python3 adb_proxy.py</code><br>
+                        2. 确保手机已连接并开启 USB 调试<br>
+                        3. 点击"测试连接"验证<br>
+                        4. 连接成功后点击格子即可自动点击
+                    </div>
+                    <div class="config-row">
+                        <div class="config-group">
+                            <label>代理服务器地址</label>
+                            <input type="text" id="proxy-url" value="http://localhost:8085"
+                                placeholder="http://localhost:8085" onchange="saveConfig()">
+                        </div>
+                    </div>
+                    <div class="config-row" style="margin-top: 10px;">
+                        <button onclick="testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
+                    </div>
+                    <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                        未测试连接
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAdbModal()">关闭</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 命令显示区域 -->
     <div id="cmd-display" class="cmd-display">
