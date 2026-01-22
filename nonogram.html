@@ -7,67 +7,106 @@
     <title>数织 (Nonogram) 求解器</title>
     <style>
         :root {
-            --bg-color: #3e3e3e;
-            --primary-color: #333;
-            --accent-color: #4a90e2;
-            --cell-size: 25px;
-            --border-color: #aaa;
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --warning-hover: #d97706;
+            --secondary: #64748b;
+            --secondary-hover: #475569;
+            --cell-size: 28px;
+            --filled-color: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--primary-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
+            padding: 40px 20px;
             margin: 0;
+            min-height: 100vh;
         }
 
         h1 {
-            margin-bottom: 10px;
-            color: var(--accent-color);
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
         }
 
         .container {
             display: flex;
-            gap: 20px;
+            gap: 24px;
             justify-content: center;
-            max-width: 1200px;
+            max-width: 1400px;
             width: 100%;
+            align-items: flex-start;
         }
 
         .input-section {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 250px;
+            background: var(--bg-secondary);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+            width: 280px;
             display: flex;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .input-section textarea {
             width: 100%;
-            height: 200px;
-            /* 增加高度以适应20行 */
-            padding: 10px;
+            height: 180px;
+            padding: 12px;
             box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             resize: vertical;
-            font-family: monospace;
-            margin-bottom: 15px;
-            font-size: 12px;
-            /* 减小字体以适应更多内容 */
-            line-height: 1.3;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .input-section textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         label {
-            font-weight: bold;
-            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 8px;
             display: block;
+            color: var(--text-primary);
+        }
+
+        .input-section > p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 20px;
         }
 
         textarea {
@@ -84,37 +123,57 @@
 
         .controls {
             display: flex;
-            gap: 10px;
-            margin-top: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         button {
-            padding: 10px 20px;
-            background-color: var(--accent-color);
+            padding: 10px 16px;
+            background-color: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
-            transition: background 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            white-space: nowrap;
         }
 
-        button:hover {
-            background-color: #357abd;
+        button:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.6;
         }
 
         button.secondary {
-            background-color: #6c757d;
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background-color: var(--border-color);
         }
 
         #result-area {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
             overflow: auto;
             display: none;
-            /* 初始隐藏 */
             min-height: 400px;
+            border: 1px solid var(--border-color);
+            padding: 24px;
         }
 
         #result-area.show {
@@ -126,54 +185,53 @@
         /* 网格布局 */
         .nono-grid {
             display: grid;
-            /* grid-template-columns 和 rows 会在 JS 中动态设置 */
-            border: 2px solid var(--primary-color);
-            background-color: #fff;
+            background-color: var(--bg-secondary);
         }
 
         .cell {
             width: var(--cell-size);
             height: var(--cell-size);
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             box-sizing: border-box;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 13px;
+            background-color: var(--bg-secondary);
         }
 
         /* 粗边框，每5格显示 */
         .cell.border-right {
-            border-right: 2px solid var(--border-color);
+            border-right: 2px solid var(--text-secondary);
         }
 
         .cell.border-bottom {
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--text-secondary);
         }
 
         /* 状态样式 */
         .cell.filled {
-            background-color: var(--primary-color);
+            background-color: var(--filled-color);
         }
 
         .cell.empty {
-            color: #ccc;
+            color: var(--text-muted);
         }
 
         .cell.empty::after {
             content: "×";
-            font-size: 18px;
+            font-size: 20px;
         }
 
         .cell.unknown {
-            background-color: #f0f0f0;
-            border: 1px dashed #999;
+            background-color: var(--bg-tertiary);
+            border: 1px dashed var(--text-muted);
         }
 
         .cell.unknown::after {
             content: "?";
-            color: #666;
-            font-size: 14px;
+            color: var(--text-secondary);
+            font-size: 16px;
         }
 
         /* 提示数字区域 */
@@ -181,57 +239,88 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            color: #555;
-            background-color: #eaeaea;
-            padding: 2px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            background-color: var(--bg-tertiary);
+            padding: 4px;
             white-space: pre-line;
             text-align: center;
-            line-height: 1.2;
+            line-height: 1.3;
+            font-weight: 500;
         }
 
         .hint.col-hint {
             flex-direction: column;
             justify-content: flex-end;
-            padding-bottom: 4px;
-            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--text-secondary);
         }
 
         .hint.row-hint {
             justify-content: flex-end;
-            padding-right: 4px;
-            border-right: 2px solid var(--primary-color);
+            padding-right: 8px;
+            border-right: 2px solid var(--text-secondary);
         }
 
         .corner {
-            background-color: #fff;
+            background-color: var(--bg-secondary);
         }
 
         .status-msg {
-            margin-top: 10px;
-            font-weight: bold;
+            margin-top: 12px;
+            font-weight: 500;
             text-align: center;
+            font-size: 14px;
+            padding: 8px;
+            border-radius: 6px;
         }
 
         /* ADB 配置面板 */
         .adb-config {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 4px;
-            margin-top: 15px;
-            border: 1px solid #e0e0e0;
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
         }
 
         .adb-config h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #333;
+            margin: 0 0 12px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .adb-config > div:first-of-type {
+            padding: 10px 12px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--primary);
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .adb-config > div:first-of-type strong {
+            font-weight: 600;
+        }
+
+        .adb-config > div:first-of-type code {
+            background: rgba(59, 130, 246, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
         }
 
         .adb-config .config-row {
             display: flex;
             gap: 10px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         .adb-config .config-group {
@@ -240,33 +329,44 @@
 
         .adb-config label {
             font-size: 12px;
-            margin-bottom: 3px;
+            font-weight: 500;
+            margin-bottom: 6px;
         }
 
-        .adb-config input {
+        .adb-config input[type="text"],
+        .adb-config input[type="number"] {
             width: 100%;
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            font-size: 12px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
             box-sizing: border-box;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .adb-config input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         /* 命令显示区域 */
         .cmd-display {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            color: #0f0;
-            padding: 15px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
+            bottom: 24px;
+            right: 24px;
+            background: var(--text-primary);
+            color: #a5f3fc;
+            padding: 16px;
+            border-radius: 12px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
             font-size: 13px;
             z-index: 1000;
-            max-width: 400px;
+            max-width: 420px;
             display: none;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
         }
 
         .cmd-display.show {
@@ -275,13 +375,15 @@
 
         .cmd-display .cmd-text {
             word-break: break-all;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            line-height: 1.4;
         }
 
         .cmd-display .cmd-info {
-            color: #aaa;
+            color: var(--text-muted);
             font-size: 11px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            line-height: 1.4;
         }
 
         .cmd-display .cmd-actions {
@@ -290,34 +392,35 @@
         }
 
         .cmd-display button {
-            padding: 5px 12px;
-            font-size: 12px;
+            padding: 6px 14px;
+            font-size: 13px;
         }
 
         .cmd-display .copy-btn {
-            background-color: #28a745;
+            background-color: var(--success);
         }
 
-        .cmd-display .copy-btn:hover {
-            background-color: #218838;
+        .cmd-display .copy-btn:hover:not(:disabled) {
+            background-color: var(--success-hover);
         }
 
         .cmd-display .close-btn {
-            background-color: #dc3545;
+            background-color: var(--danger);
         }
 
-        .cmd-display .close-btn:hover {
-            background-color: #c82333;
+        .cmd-display .close-btn:hover:not(:disabled) {
+            background-color: var(--danger-hover);
         }
 
         /* 格子点击样式 */
         .cell.clickable {
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: all 0.15s ease;
         }
 
         .cell.clickable:hover {
-            background-color: rgba(74, 144, 226, 0.3) !important;
+            background-color: rgba(59, 130, 246, 0.2) !important;
+            transform: scale(1.05);
         }
 
         .cell.clickable:active {
@@ -326,16 +429,11 @@
 
         /* 设备连接按钮 */
         #connect-btn {
-            background-color: #28a745;
+            background-color: var(--success);
         }
 
-        #connect-btn:hover {
-            background-color: #218838;
-        }
-
-        #connect-btn:disabled {
-            background-color: #6c757d;
-            cursor: not-allowed;
+        #connect-btn:hover:not(:disabled) {
+            background-color: var(--success-hover);
         }
 
         #disconnect-btn:disabled {
@@ -343,17 +441,25 @@
             cursor: not-allowed;
         }
 
+        #batch-tap-btn {
+            background-color: var(--warning);
+        }
+
+        #batch-tap-btn:hover:not(:disabled) {
+            background-color: var(--warning-hover);
+        }
+
         .device-connected {
-            color: #28a745 !important;
-            font-weight: bold;
+            color: var(--success) !important;
+            font-weight: 600;
         }
 
         .device-disconnected {
-            color: #dc3545 !important;
+            color: var(--danger) !important;
         }
 
         .device-connecting {
-            color: #ffc107 !important;
+            color: var(--warning) !important;
         }
     </style>
 </head>
@@ -383,12 +489,12 @@
             <div class="adb-config">
                 <h3>📱 ADB 点击配置</h3>
                 <div
-                    style="margin-bottom: 10px; padding: 8px; background: #e7f3ff; border: 1px solid #2196f3; border-radius: 4px; font-size: 11px; color: #0d47a1;">
+                    style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
                     <strong>使用步骤：</strong><br>
                     1. 在终端运行：<code>python3 adb_proxy.py</code><br>
                     2. 确保手机已连接并开启 USB 调试<br>
                     3. 点击"测试连接"验证<br>
-                    4. 配置坐标后点击格子即可
+                    4. 连接成功后点击格子即可自动点击
                 </div>
                 <div class="config-row">
                     <div class="config-group">
@@ -401,32 +507,8 @@
                     <button onclick="testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
                 </div>
                 <div class="config-row" style="margin-top: 10px;">
-                    <button onclick="batchTapAllFilled()" style="flex: 1; background-color: #ff9800;"
+                    <button onclick="batchTapAllFilled()" style="flex: 1;"
                         id="batch-tap-btn">🎯 批量点击所有填充格子</button>
-                </div>
-                <div class="config-row">
-                    <div class="config-group">
-                        <label>起始 X 坐标 (像素)</label>
-                        <input type="number" id="start-x" value="180" onchange="saveConfig()">
-                    </div>
-                    <div class="config-group">
-                        <label>起始 Y 坐标 (像素)</label>
-                        <input type="number" id="start-y" value="890" onchange="saveConfig()">
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-group">
-                        <label>格子宽度 (像素)</label>
-                        <input type="number" id="cell-width" value="62" onchange="saveConfig()">
-                    </div>
-                    <div class="config-group">
-                        <label>格子高度 (像素)</label>
-                        <input type="number" id="cell-height" value="62" onchange="saveConfig()">
-                    </div>
-                </div>
-                <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="auto-tap" checked onchange="saveConfig()">
-                    <label for="auto-tap" style="margin: 0; font-size: 12px; cursor: pointer;">连接成功后自动执行点击</label>
                 </div>
                 <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
                     未测试连接
@@ -454,33 +536,17 @@
             startX: 180,
             startY: 890,
             cellWidth: 62,
-            cellHeight: 62,
-            autoTap: true
+            cellHeight: 62
         };
 
         // 保存配置到 localStorage
         function saveConfig() {
-            adbConfig.startX = parseInt(document.getElementById('start-x').value) || 180;
-            adbConfig.startY = parseInt(document.getElementById('start-y').value) || 890;
-            adbConfig.cellWidth = parseInt(document.getElementById('cell-width').value) || 62;
-            adbConfig.cellHeight = parseInt(document.getElementById('cell-height').value) || 62;
-            adbConfig.autoTap = document.getElementById('auto-tap').checked;
             proxyUrl = document.getElementById('proxy-url').value;
-            localStorage.setItem('adbConfig', JSON.stringify(adbConfig));
             localStorage.setItem('proxyUrl', proxyUrl);
         }
 
         // 从 localStorage 加载配置
         function loadConfig() {
-            const saved = localStorage.getItem('adbConfig');
-            if (saved) {
-                adbConfig = JSON.parse(saved);
-                document.getElementById('start-x').value = adbConfig.startX;
-                document.getElementById('start-y').value = adbConfig.startY;
-                document.getElementById('cell-width').value = adbConfig.cellWidth;
-                document.getElementById('cell-height').value = adbConfig.cellHeight;
-                document.getElementById('auto-tap').checked = adbConfig.autoTap !== undefined ? adbConfig.autoTap : true;
-            }
             const savedProxyUrl = localStorage.getItem('proxyUrl');
             if (savedProxyUrl) {
                 proxyUrl = savedProxyUrl;
@@ -1401,11 +1467,8 @@
             const screenX = adbConfig.startX + col * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
             const screenY = adbConfig.startY + row * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
 
-            // 检查是否启用自动执行
-            const autoTap = document.getElementById('auto-tap').checked;
-
-            // 如果代理已连接且启用自动执行，直接执行点击
-            if (proxyConnected && autoTap) {
+            // 如果代理已连接，直接执行点击
+            if (proxyConnected) {
                 try {
                     const statusEl = document.getElementById('device-status');
                     statusEl.textContent = `正在点击 (${row + 1}, ${col + 1})...`;
@@ -1431,7 +1494,7 @@
                     statusEl.className = 'device-disconnected';
                 }
             } else {
-                // 代理未连接或未启用自动执行，显示命令供复制
+                // 代理未连接，显示命令供复制
                 const cmd = `adb shell input tap ${screenX} ${screenY}`;
                 showCommand(row, col, value, screenX, screenY, cmd);
             }
