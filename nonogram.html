@@ -617,6 +617,21 @@
                     <button onclick="openAdbModal()">ADB 设置</button>
                 </div>
             </div>
+
+            <!-- 快捷键提示 -->
+            <div id="shortcut-info"
+                style="margin-top: 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border-radius: 6px; font-size: 12px; color: var(--text-secondary);">
+                <strong>快捷键：</strong>
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Ctrl/Cmd</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Shift</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">F</kbd>
+                = 批量点击填充
+                <span id="shortcut-status" style="float: right; color: var(--primary);"></span>
+            </div>
+
             <div id="status" class="status-msg"></div>
         </div>
 
@@ -658,11 +673,12 @@
             }
         }
 
-        // 页面加载时加载配置
-        window.onload = function () {
+        // 页面加载时加载配置和设置快捷键
+        document.addEventListener('DOMContentLoaded', function () {
             loadConfig();
             setupInputFilters();
-        };
+            addKeyboardShortcuts();
+        });
 
         // 设置输入框限制
         function setupInputFilters() {
@@ -979,7 +995,7 @@
         }
 
         // 页面加载时检查 WebUSB 支持
-        window.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', () => {
             checkWebUSBSupport();
         });
 
@@ -1174,7 +1190,7 @@
             const batchBtn = document.getElementById('batch-tap-btn');
 
             if (!currentGrid) {
-                alert('请先求解数织！');
+                alert('点击填充前，请先求解数织！');
                 return;
             }
 
@@ -1256,7 +1272,7 @@
             const batchBtn = document.getElementById('batch-tap-empty-btn');
 
             if (!currentGrid) {
-                alert('请先求解数织！');
+                alert('点击空格前，请先求解数织！');
                 return;
             }
 
@@ -1786,18 +1802,81 @@
             document.getElementById('adb-modal-overlay').classList.remove('show');
         }
 
-        // 点击遮罩层关闭弹窗
-        document.getElementById('adb-modal-overlay').addEventListener('click', function (e) {
-            if (e.target === this) {
-                closeAdbModal();
+        // 添加键盘快捷键
+        function addKeyboardShortcuts() {
+            // 检查是否已经有事件监听器，避免重复添加
+            if (window.shortcutAdded) {
+                console.log('快捷键已注册，跳过重复添加');
+                return;
             }
-        });
+            window.shortcutAdded = true;
 
-        // ESC 键关闭弹窗
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') {
-                closeAdbModal();
+            // 使用 keydown 事件监听
+            document.addEventListener('keydown', handleKeyPress, true);
+
+            console.log('键盘快捷键已注册：Ctrl+Shift+F (批量点击填充)');
+
+            // 显示注册成功状态
+            const statusEl = document.getElementById('shortcut-status');
+            if (statusEl) {
+                statusEl.textContent = '快捷键已启用';
+                statusEl.style.color = 'var(--success)';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 3000);
             }
+        }
+
+        // 处理键盘按键
+        function handleKeyPress(e) {
+            e = e || window.event;
+
+            // 检查是否在输入框中
+            if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
+                return;
+            }
+
+            // 检查是否是 F 键，并满足组合键条件
+            const key = e.key.toLowerCase();
+            if (key === 'f' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                showShortcutFeedback('填充快捷键已触发');
+                batchTapAllFilled();
+            }
+        }
+
+
+        // 显示快捷键反馈
+        function showShortcutFeedback(message) {
+            const statusEl = document.getElementById('shortcut-status');
+            if (statusEl) {
+                statusEl.textContent = message;
+                statusEl.style.color = 'var(--success)';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 2000);
+            }
+        }
+
+        // 页面加载完成后添加事件监听器
+        document.addEventListener('DOMContentLoaded', function () {
+            // 点击遮罩层关闭弹窗
+            const modalOverlay = document.getElementById('adb-modal-overlay');
+            if (modalOverlay) {
+                modalOverlay.addEventListener('click', function (e) {
+                    if (e.target === this) {
+                        closeAdbModal();
+                    }
+                });
+            }
+
+            // ESC 键关闭弹窗
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    closeAdbModal();
+                }
+            });
         });
     </script>
 
