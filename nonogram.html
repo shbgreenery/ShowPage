@@ -661,7 +661,34 @@
         // 页面加载时加载配置
         window.onload = function () {
             loadConfig();
+            setupInputFilters();
         };
+
+        // 设置输入框限制
+        function setupInputFilters() {
+            const rowConstraints = document.getElementById('row-constraints');
+            const colConstraints = document.getElementById('col-constraints');
+
+            function filterInput(e) {
+                const textarea = e.target;
+                const cursorPosition = textarea.selectionStart;
+                const currentValue = textarea.value;
+
+                // 过滤只保留数字、空格、问号、-1和换行
+                const filteredValue = currentValue.replace(/[^0-9?\-\n\s]/g, '');
+
+                // 如果过滤后的值与原值不同，则替换
+                if (filteredValue !== currentValue) {
+                    textarea.value = filteredValue;
+                    // 恢复光标位置
+                    const newPosition = cursorPosition - (currentValue.length - filteredValue.length);
+                    textarea.setSelectionRange(newPosition, newPosition);
+                }
+            }
+
+            rowConstraints.addEventListener('input', filterInput);
+            colConstraints.addEventListener('input', filterInput);
+        }
 
         // 代理服务器相关变量
         let proxyConnected = false;
