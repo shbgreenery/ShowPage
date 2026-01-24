@@ -39,17 +39,194 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 40px 20px;
+            padding: 20px 20px;
             margin: 0;
             min-height: 100vh;
         }
 
+        /* 高度受限的屏幕优化 */
+        @media (max-height: 700px) {
+            body {
+                padding: 15px 20px;
+                min-height: auto;
+            }
+
+            h1 {
+                margin-bottom: 15px;
+            }
+
+            .container {
+                gap: 16px;
+            }
+
+            .input-section {
+                padding: 20px;
+            }
+
+            .input-section textarea {
+                height: 140px;
+            }
+
+            #result-area {
+                min-height: 350px;
+                padding: 20px;
+            }
+        }
+
+        /* 极小高度屏幕优化 */
+        @media (max-height: 600px) {
+            body {
+                padding: 10px 20px;
+            }
+
+            h1 {
+                margin-bottom: 10px;
+            }
+
+            .container {
+                gap: 12px;
+            }
+
+            .input-section {
+                padding: 16px;
+            }
+
+            .input-section textarea {
+                height: 120px;
+            }
+
+            .controls {
+                margin-top: 12px;
+            }
+
+            #result-area {
+                min-height: 300px;
+                padding: 16px;
+            }
+
+            .cell {
+                width: 24px;
+                height: 24px;
+            }
+
+            :root {
+                --cell-size: 24px;
+            }
+        }
+
         h1 {
-            margin-bottom: 30px;
-            font-size: 28px;
+            margin-bottom: 20px;
+            font-size: 22px;
             font-weight: 600;
             color: var(--text-primary);
             letter-spacing: -0.5px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px 10px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 16px;
+            }
+
+            .container {
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+            }
+
+            .input-section {
+                width: 100%;
+                max-width: 350px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 18px;
+                margin-bottom: 12px;
+            }
+        }
+
+        /* 小屏幕且高度受限的复合优化 */
+        @media (max-width: 768px) and (max-height: 700px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                margin-bottom: 12px;
+            }
+
+            .container {
+                gap: 12px;
+            }
+
+            .input-section {
+                padding: 16px;
+            }
+
+            .input-section textarea {
+                height: 120px;
+            }
+
+            #result-area {
+                min-height: 280px;
+                padding: 16px;
+            }
+        }
+
+        /* 极小屏幕且高度受限的进一步优化 */
+        @media (max-width: 480px) and (max-height: 600px) {
+            body {
+                padding: 8px;
+            }
+
+            h1 {
+                margin-bottom: 8px;
+                font-size: 16px;
+            }
+
+            .container {
+                gap: 8px;
+            }
+
+            .input-section {
+                padding: 12px;
+            }
+
+            .input-section textarea {
+                height: 100px;
+            }
+
+            .controls {
+                margin-top: 8px;
+                gap: 6px;
+            }
+
+            button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            #result-area {
+                min-height: 250px;
+                padding: 12px;
+            }
+
+            .cell {
+                width: 22px;
+                height: 22px;
+                font-size: 12px;
+            }
+
+            :root {
+                --cell-size: 22px;
+            }
         }
 
         .container {
