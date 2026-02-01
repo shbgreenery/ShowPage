@@ -22,3 +22,6 @@ config.json
 # 测试
 test_*.py
 *_test.py
+
+
+*.txt

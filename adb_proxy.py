@@ -9,6 +9,9 @@ import subprocess
 import json
 import urllib.parse
 import sys
+from PIL import Image
+import io
+import base64
 
 
 class ADBProxyHandler(BaseHTTPRequestHandler):
@@ -98,6 +101,30 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': 'error',
                     'message': '命令执行超时'
                 }, 500)
+            except Exception as e:
+                self.send_json_response({
+                    'status': 'error',
+                    'message': str(e)
+                }, 500)
+        elif self.path == '/screenshot':
+            try:
+                # 执行ADB截图命令
+                result = subprocess.run(
+                    ['adb', 'shell', 'screencap', '-p'],
+                    capture_output=True,
+                    timeout=10
+                )
+
+                if result.returncode != 0:
+                    raise ValueError(f'截图失败: {result.stderr.decode()}')
+
+                # 将PNG数据编码为base64
+                screenshot_b64 = base64.b64encode(result.stdout).decode('utf-8')
+
+                self.send_json_response({
+                    'status': 'ok',
+                    'screenshot': screenshot_b64
+                })
             except Exception as e:
                 self.send_json_response({
                     'status': 'error',
