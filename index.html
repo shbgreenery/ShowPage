@@ -4,120 +4,297 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数织 (Nonogram) 求解器</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>游戏工具集合</title>
+    <style>
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --warning-hover: #d97706;
+            --secondary: #64748b;
+            --secondary-hover: #475569;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin-bottom: 40px;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-align: center;
+            letter-spacing: -1px;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .tool-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 32px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-color: var(--primary);
+        }
+
+        .tool-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .tool-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .tool-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .tool-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .footer {
+            margin-top: 60px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 20px 15px;
+            }
+
+            h1 {
+                font-size: 28px;
+                margin-bottom: 30px;
+            }
+
+            .tools-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .tool-card {
+                padding: 24px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-    <h1>数织 (Nonogram) 求解器</h1>
+    <h1>🎮 游戏工具集合</h1>
 
-    <div class="container">
-        <div class="input-section">
-            <p style="font-size: 0.9em; color: #666;">每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。</p>
-
-            <label for="row-constraints">行约束 (Row Hints):</label>
-            <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
-
-            <label for="col-constraints">列约束 (Column Hints):</label>
-            <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
-
-            <div class="controls">
-                <div class="control-row">
-                    <button class="btn-primary" onclick="window.nonogramCore.solve()">求解</button>
-                    <button onclick="window.nonogramCore.loadSample()">示例</button>
-                    <button onclick="window.nonogramCore.clearConstraints()">清空</button>
-                </div>
-                <div class="control-row">
-                    <button class="btn-warning" onclick="window.adbControls.batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
-                    <button onclick="window.adbControls.batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
-                    <button onclick="window.adbControls.openAdbModal()">ADB 设置</button>
-                </div>
+    <div class="tools-grid">
+        <!-- 数织求解器 -->
+        <div class="tool-card" onclick="openTool('nonogram')">
+            <div class="tool-icon">🧩</div>
+            <div class="tool-title">数织求解器</div>
+            <div class="tool-description">
+                智能数织谜题求解器，支持ADB自动点击功能，可配置颜色检测阈值，大幅提升游戏效率。
             </div>
-
-            <!-- 快捷键提示 -->
-            <div id="shortcut-info"
-                style="margin-top: 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border-radius: 6px; font-size: 12px; color: var(--text-secondary);">
-                <strong>快捷键：</strong>
-                <kbd
-                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Ctrl/Cmd</kbd>+
-                <kbd
-                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Shift</kbd>+
-                <kbd
-                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">F</kbd>
-                = 批量点击填充
-                <span id="shortcut-status" style="float: right; color: var(--primary);"></span>
+            <div class="tool-actions">
+                <a href="nonogram.html" class="btn btn-primary">打开工具</a>
             </div>
-
-            <div id="status" class="status-msg"></div>
         </div>
 
-        <div id="result-area"
-            style="flex: 1; min-width: 300px; display: flex; justify-content: center; align-items: flex-start;">
-            <!-- 网格将在这里生成 -->
-            <div
-                style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">
-                结果将显示在这里</div>
+        <!-- 扫雷求解器 -->
+        <div class="tool-card" onclick="openTool('minesweeper')">
+            <div class="tool-icon">💣</div>
+            <div class="tool-title">扫雷求解器</div>
+            <div class="tool-description">
+                高级扫雷求解器，使用单单元分析和集合差算法，支持复杂模式识别，一键解决扫雷谜题。
+            </div>
+            <div class="tool-actions">
+                <a href="minesweeper.html" class="btn btn-primary">打开工具</a>
+                <a href="#" class="btn btn-secondary" onclick="installUserScript('minesweeper')">安装脚本</a>
+            </div>
         </div>
-    </div>
 
-    <!-- ADB 设置弹窗 -->
-    <div id="adb-modal-overlay" class="modal-overlay">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>📱 ADB 点击配置</h3>
-                <button class="modal-close" onclick="window.adbControls.closeAdbModal()">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                    </svg>
-                </button>
+        <!-- 占位卡片 - 未来工具 -->
+        <div class="tool-card" style="opacity: 0.6; cursor: not-allowed;">
+            <div class="tool-icon">🔧</div>
+            <div class="tool-title">更多工具</div>
+            <div class="tool-description">
+                敬请期待更多游戏工具的开发...
             </div>
-            <div class="modal-body">
-                <div class="adb-config">
-                    <div
-                        style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
-                        <strong>使用步骤：</strong><br>
-                        1. 在终端运行：<code>python3 adb_proxy.py</code><br>
-                        2. 确保手机已连接并开启 USB 调试<br>
-                        3. 点击"测试连接"验证<br>
-                        4. 连接成功后点击格子即可自动点击
-                    </div>
-                    <div class="config-row">
-                        <div class="config-group">
-                            <label>代理服务器地址</label>
-                            <input type="text" id="proxy-url" value="http://localhost:8085"
-                                placeholder="http://localhost:8085" onchange="window.adbControls.saveConfig()">
-                        </div>
-                    </div>
-                    <div class="config-row" style="margin-top: 10px;">
-                        <button onclick="window.adbControls.testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
-                    </div>
-                    <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
-                        未测试连接
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button onclick="window.adbControls.closeAdbModal()">关闭</button>
+            <div class="tool-actions">
+                <button class="btn btn-secondary" disabled>敬请期待</button>
             </div>
         </div>
     </div>
 
-    <!-- 命令显示区域 -->
-    <div id="cmd-display" class="cmd-display">
-        <div class="cmd-info" id="cmd-info"></div>
-        <div class="cmd-text" id="cmd-text"></div>
-        <div class="cmd-actions">
-            <button class="copy-btn" onclick="window.adbControls.copyCommand()">复制命令</button>
-            <button class="close-btn" onclick="window.adbControls.hideCommand()">关闭</button>
-        </div>
+    <div class="footer">
+        <p>© 2024 游戏工具集合 | 使用现代Web技术构建</p>
     </div>
 
-    <!-- 引入模块化的JavaScript -->
-    <script src="ui-controls.js"></script>
-    <script src="nonogram.js"></script>
-    <script src="adb-controls.js"></script>
+    <script>
+        // 打开工具页面
+        function openTool(toolName) {
+            if (toolName === 'nonogram') {
+                window.open('nonogram.html', '_blank');
+            } else if (toolName === 'minesweeper') {
+                window.open('minesweeper.html', '_blank');
+            }
+        }
+
+        // 安装用户脚本
+        function installUserScript(toolName) {
+            if (toolName === 'minesweeper') {
+                // 创建用户脚本下载链接
+                const scriptContent = document.createElement('div');
+                scriptContent.innerHTML = `
+                    <div style="padding: 20px; text-align: center;">
+                        <h3>安装扫雷求解器脚本</h3>
+                        <p>请按照以下步骤安装Tampermonkey插件：</p>
+                        <ol style="text-align: left; max-width: 500px; margin: 0 auto;">
+                            <li>访问 <a href="https://www.tampermonkey.net/" target="_blank">Tampermonkey官网</a></li>
+                            <li>为你的浏览器安装Tampermonkey扩展</li>
+                            <li>点击下面的按钮下载脚本文件</li>
+                            <li>在Tampermonkey中导入脚本</li>
+                        </ol>
+                        <button onclick="downloadUserScript()" style="margin-top: 20px; padding: 12px 24px;">
+                            下载 minesweeper-solver.user.js
+                        </button>
+                    </div>
+                `;
+
+                // 创建模态框
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                `;
+                modal.appendChild(scriptContent);
+                document.body.appendChild(modal);
+
+                // 点击背景关闭
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        document.body.removeChild(modal);
+                    }
+                });
+
+            }
+        }
+
+        // 下载用户脚本
+        function downloadUserScript() {
+            const scriptUrl = 'minesweeper-solver.user.js';
+            const a = document.createElement('a');
+            a.href = scriptUrl;
+            a.download = 'minesweeper-solver.user.js';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // 显示下载成功提示
+            const modal = document.querySelector('div[style*="position: fixed"]');
+            if (modal) {
+                const button = modal.querySelector('button');
+                button.textContent = '✓ 下载成功！';
+                button.style.backgroundColor = 'var(--success)';
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                }, 2000);
+            }
+        }
+    </script>
 
 </body>
 

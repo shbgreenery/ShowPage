@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数织 (Nonogram) 求解器</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <h1>数织 (Nonogram) 求解器</h1>
+
+    <div class="container">
+        <div class="input-section">
+            <p style="font-size: 0.9em; color: #666;">每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。</p>
+
+            <label for="row-constraints">行约束 (Row Hints):</label>
+            <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
+
+            <label for="col-constraints">列约束 (Column Hints):</label>
+            <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
+
+            <div class="controls">
+                <div class="control-row">
+                    <button class="btn-primary" onclick="window.nonogramCore.solve()">求解</button>
+                    <button onclick="window.nonogramCore.loadSample()">示例</button>
+                    <button onclick="window.nonogramCore.clearConstraints()">清空</button>
+                </div>
+                <div class="control-row">
+                    <button class="btn-warning" onclick="window.adbControls.batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
+                    <button onclick="window.adbControls.batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
+                    <button onclick="window.adbControls.openAdbModal()">ADB 设置</button>
+                </div>
+            </div>
+
+            <!-- 快捷键提示 -->
+            <div id="shortcut-info"
+                style="margin-top: 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border-radius: 6px; font-size: 12px; color: var(--text-secondary);">
+                <strong>快捷键：</strong>
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Ctrl/Cmd</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Shift</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">F</kbd>
+                = 批量点击填充
+                <span id="shortcut-status" style="float: right; color: var(--primary);"></span>
+            </div>
+
+            <div id="status" class="status-msg"></div>
+        </div>
+
+        <div id="result-area"
+            style="flex: 1; min-width: 300px; display: flex; justify-content: center; align-items: flex-start;">
+            <!-- 网格将在这里生成 -->
+            <div
+                style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">
+                结果将显示在这里</div>
+        </div>
+    </div>
+
+    <!-- ADB 设置弹窗 -->
+    <div id="adb-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📱 ADB 点击配置</h3>
+                <button class="modal-close" onclick="window.adbControls.closeAdbModal()">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="adb-config">
+                    <div
+                        style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
+                        <strong>使用步骤：</strong><br>
+                        1. 在终端运行：<code>python3 adb_proxy.py</code><br>
+                        2. 确保手机已连接并开启 USB 调试<br>
+                        3. 点击"测试连接"验证<br>
+                        4. 连接成功后点击格子即可自动点击
+                    </div>
+                    <div class="config-row">
+                        <div class="config-group">
+                            <label>代理服务器地址</label>
+                            <input type="text" id="proxy-url" value="http://localhost:8085"
+                                placeholder="http://localhost:8085" onchange="window.adbControls.saveConfig()">
+                        </div>
+                    </div>
+                    <div class="config-row" style="margin-top: 10px;">
+                        <button onclick="window.adbControls.testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
+                    </div>
+                    <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                        未测试连接
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="window.adbControls.closeAdbModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 命令显示区域 -->
+    <div id="cmd-display" class="cmd-display">
+        <div class="cmd-info" id="cmd-info"></div>
+        <div class="cmd-text" id="cmd-text"></div>
+        <div class="cmd-actions">
+            <button class="copy-btn" onclick="window.adbControls.copyCommand()">复制命令</button>
+            <button class="close-btn" onclick="window.adbControls.hideCommand()">关闭</button>
+        </div>
+    </div>
+
+    <!-- 引入模块化的JavaScript -->
+    <script src="ui-controls.js"></script>
+    <script src="nonogram.js"></script>
+    <script src="adb-controls.js"></script>
+
+</body>
+
+</html>
