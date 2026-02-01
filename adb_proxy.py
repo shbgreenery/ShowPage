@@ -9,8 +9,6 @@ import subprocess
 import json
 import urllib.parse
 import sys
-from PIL import Image
-import io
 import base64
 
 
