@@ -126,7 +126,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     raise ValueError(f'截图失败: {result.stderr.decode()}')
 
                 # 将PNG数据编码为base64
-                screenshot_b64 = base64.b64encode(result.stdout).decode('utf-8')
+                screenshot_b64 = base64.b64encode(
+                    result.stdout).decode('utf-8')
 
                 self.send_json_response({
                     'status': 'ok',
@@ -146,8 +147,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
                 x = int(data.get('x', 0))
                 y = int(data.get('y', 0))
-                # 获取请求中的白色阈值（可选）
-                white_threshold = int(data.get('white_threshold', 240))
+                # 获取请求中的白色阈值参数（可选，当前使用固定精确值）
+                white_threshold = int(data.get('white_threshold', 240))  # 保留参数以保持API兼容性
 
                 # 执行ADB截图
                 result = subprocess.run(
@@ -168,7 +169,13 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     pixel_color = pixel_color[:3]
 
                 r, g, b = pixel_color
-                is_white = (r > white_threshold and g > white_threshold and b > white_threshold)  # 判断是否为白色
+                # 使用精确的白色判断：R=241, G=239, B=220
+                # 允许一定的误差范围
+                is_white = (r >= 235 and g >= 235 and b >= 210)  # 判断是否为白色
+
+                print(f"点击位置: ({x}, {y})")
+                print(f"RGB值: R={r}, G={g}, B={b}")
+                print(f"是否为白色: {is_white}")
 
                 self.send_json_response({
                     'status': 'ok',
