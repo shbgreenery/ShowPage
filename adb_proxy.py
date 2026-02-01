@@ -10,6 +10,8 @@ import json
 import urllib.parse
 import sys
 import base64
+import io
+from PIL import Image
 
 
 class ADBProxyHandler(BaseHTTPRequestHandler):
@@ -123,6 +125,50 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': 'ok',
                     'screenshot': screenshot_b64
                 })
+            except Exception as e:
+                self.send_json_response({
+                    'status': 'error',
+                    'message': str(e)
+                }, 500)
+        elif self.path == '/get-color':
+            try:
+                # 读取请求体
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                data = json.loads(post_data.decode('utf-8'))
+
+                x = int(data.get('x', 0))
+                y = int(data.get('y', 0))
+
+                # 执行ADB截图
+                result = subprocess.run(
+                    ['adb', 'shell', 'screencap', '-p'],
+                    capture_output=True,
+                    timeout=10
+                )
+
+                if result.returncode != 0:
+                    raise ValueError(f'截图失败: {result.stderr.decode()}')
+
+                # 使用PIL解析图像
+                image = Image.open(io.BytesIO(result.stdout))
+                pixel_color = image.getpixel((x, y))
+
+                # 如果是RGB模式，确保返回3个值
+                if len(pixel_color) == 4:  # RGBA
+                    pixel_color = pixel_color[:3]
+
+                r, g, b = pixel_color
+                is_white = (r > 240 and g > 240 and b > 240)  # 判断是否为白色
+
+                self.send_json_response({
+                    'status': 'ok',
+                    'x': x,
+                    'y': y,
+                    'color': {'r': r, 'g': g, 'b': b},
+                    'is_white': is_white
+                })
+
             except Exception as e:
                 self.send_json_response({
                     'status': 'error',
