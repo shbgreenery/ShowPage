@@ -994,7 +994,15 @@
                     statusEl.className = 'device-disconnected';
                     deviceStatusEl.className = 'device-disconnected';
                 }
-                throw error;
+                // 颜色检测失败时，返回默认的白色结果，确保点击操作继续
+                console.warn(`颜色检测失败 (${x}, ${y}): ${error.message}，默认执行点击`);
+                return {
+                    status: 'ok',
+                    x: x,
+                    y: y,
+                    color: { r: 255, g: 255, b: 255 },
+                    is_white: true
+                };
             }
         }
 
