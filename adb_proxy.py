@@ -145,12 +145,19 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 post_data = self.rfile.read(content_length)
                 data = json.loads(post_data.decode('utf-8'))
 
-                x = int(data.get('x', 0))
-                y = int(data.get('y', 0))
+                # 检查是否为批量请求
+                if 'positions' in data:
+                    positions = data.get('positions', [])
+                else:
+                    # 兼容单个位置请求
+                    x = int(data.get('x', 0))
+                    y = int(data.get('y', 0))
+                    positions = [{'x': x, 'y': y}]
+
                 # 获取请求中的白色阈值参数（可选，当前使用固定精确值）
                 white_threshold = int(data.get('white_threshold', 240))  # 保留参数以保持API兼容性
 
-                # 执行ADB截图
+                # 执行ADB截图（只执行一次）
                 result = subprocess.run(
                     ['adb', 'shell', 'screencap', '-p'],
                     capture_output=True,
@@ -162,28 +169,58 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
                 # 使用PIL解析图像
                 image = Image.open(io.BytesIO(result.stdout))
-                pixel_color = image.getpixel((x, y))
 
-                # 如果是RGB模式，确保返回3个值
-                if len(pixel_color) == 4:  # RGBA
-                    pixel_color = pixel_color[:3]
+                # 批量获取所有位置的颜色
+                results = []
+                for pos in positions:
+                    x, y = pos['x'], pos['y']
+                    try:
+                        pixel_color = image.getpixel((x, y))
 
-                r, g, b = pixel_color
-                # 使用精确的白色判断：R=241, G=239, B=220
-                # 允许一定的误差范围
-                is_white = (r >= 235 and g >= 235 and b >= 210)  # 判断是否为白色
+                        # 如果是RGB模式，确保返回3个值
+                        if len(pixel_color) == 4:  # RGBA
+                            pixel_color = pixel_color[:3]
 
-                print(f"点击位置: ({x}, {y})")
-                print(f"RGB值: R={r}, G={g}, B={b}")
-                print(f"是否为白色: {is_white}")
+                        r, g, b = pixel_color
+                        # 使用精确的白色判断：R=241, G=239, B=220
+                        # 允许一定的误差范围
+                        is_white = (r >= 235 and g >= 235 and b >= 210)  # 判断是否为白色
 
-                self.send_json_response({
-                    'status': 'ok',
-                    'x': x,
-                    'y': y,
-                    'color': {'r': r, 'g': g, 'b': b},
-                    'is_white': is_white
-                })
+                        results.append({
+                            'x': x,
+                            'y': y,
+                            'color': {'r': r, 'g': g, 'b': b},
+                            'is_white': is_white
+                        })
+                    except Exception as e:
+                        # 单个位置失败时，默认为白色（确保点击）
+                        results.append({
+                            'x': x,
+                            'y': y,
+                            'color': {'r': 255, 'g': 255, 'b': 255},
+                            'is_white': True,
+                            'error': str(e)
+                        })
+
+                # 关闭图像以释放内存
+                image.close()
+
+                # 如果是单个位置请求，保持原有格式兼容性
+                if len(results) == 1 and 'positions' not in data:
+                    result = results[0]
+                    self.send_json_response({
+                        'status': 'ok',
+                        'x': result['x'],
+                        'y': result['y'],
+                        'color': result['color'],
+                        'is_white': result['is_white']
+                    })
+                else:
+                    # 批量请求的新格式
+                    self.send_json_response({
+                        'status': 'ok',
+                        'results': results
+                    })
 
             except Exception as e:
                 self.send_json_response({

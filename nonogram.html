@@ -1006,6 +1006,50 @@
             }
         }
 
+        // 批量检测多个位置的颜色（性能优化）
+        async function getColorsBatch(positions) {
+            if (!proxyConnected) {
+                throw new Error('代理服务器未连接，请先点击"测试连接"');
+            }
+
+            try {
+                const response = await fetch(`${proxyUrl}/get-color`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ positions, white_threshold: adbConfig.whiteThreshold })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || '批量颜色检测失败');
+                }
+
+                const result = await response.json();
+                return result.results;
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    proxyConnected = false;
+                    const statusEl = document.getElementById('status');
+                    const deviceStatusEl = document.getElementById('device-status');
+                    statusEl.textContent = '⚠ 代理服务器连接中断';
+                    deviceStatusEl.textContent = '⚠ 代理服务器连接中断';
+                    statusEl.className = 'device-disconnected';
+                    deviceStatusEl.className = 'device-disconnected';
+                }
+                // 批量检测失败时，返回默认的白色结果
+                console.warn(`批量颜色检测失败: ${error.message}，默认全部点击`);
+                return positions.map(pos => ({
+                    status: 'ok',
+                    x: pos.x,
+                    y: pos.y,
+                    color: { r: 255, g: 255, b: 255 },
+                    is_white: true
+                }));
+            }
+        }
+
         // 通过代理执行点击命令
 
         async function executeTap(x, y) {
@@ -1461,32 +1505,74 @@
             let successCount = 0;
             let failCount = 0;
 
-            // 依次点击每个格子
-            for (let i = 0; i < filledCells.length; i++) {
-                const cell = filledCells[i];
-                statusEl.textContent = `正在点击填充格子 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
-                deviceStatusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
-                statusEl.className = 'device-connecting';
-                deviceStatusEl.className = 'device-connecting';
+            // 性能优化：批量检测所有格子的颜色
+            statusEl.textContent = `正在批量检测 ${filledCells.length} 个格子的颜色...`;
+            deviceStatusEl.textContent = `批量颜色检测中...`;
+            statusEl.className = 'device-connecting';
+            deviceStatusEl.className = 'device-connecting';
 
-                try {
-                    // 检查颜色
-                    const colorResult = await getColorAt(cell.x, cell.y);
+            try {
+                // 准备批量检测的位置数据
+                const positions = filledCells.map(cell => ({ x: cell.x, y: cell.y }));
 
-                    if (colorResult.is_white) {
-                        // 只有白色位置才点击
-                        await executeTap(cell.x, cell.y);
-                        successCount++;
-                    } else {
-                        console.log(`跳过已填充的格子 (${cell.row + 1}, ${cell.col + 1})，颜色: RGB(${colorResult.color.r}, ${colorResult.color.g}, ${colorResult.color.b})`);
-                        successCount++; // 算作成功处理，因为已经填充
+                // 批量检测颜色（只截图一次）
+                const colorResults = await getColorsBatch(positions);
+
+                console.log(`批量颜色检测完成，共检测 ${colorResults.length} 个位置`);
+
+                // 执行点击操作
+                for (let i = 0; i < filledCells.length; i++) {
+                    const cell = filledCells[i];
+                    const colorResult = colorResults[i];
+
+                    statusEl.textContent = `正在点击填充格子 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
+                    deviceStatusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
+
+                    try {
+                        if (colorResult.is_white) {
+                            // 只有白色位置才点击
+                            await executeTap(cell.x, cell.y);
+                            successCount++;
+                        } else {
+                            console.log(`跳过已填充的格子 (${cell.row + 1}, ${cell.col + 1})，颜色: RGB(${colorResult.color.r}, ${colorResult.color.g}, ${colorResult.color.b})`);
+                            successCount++; // 算作成功处理，因为已经填充
+                        }
+
+                        // 添加小延迟，避免点击过快
+                        await new Promise(resolve => setTimeout(resolve, 50)); // 减少延迟，因为颜色检测已经完成
+                    } catch (error) {
+                        console.error(`点击 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
+                        failCount++;
                     }
+                }
+            } catch (error) {
+                console.error('批量颜色检测失败，回退到逐个检测模式:', error);
 
-                    // 添加小延迟，避免操作过快
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (error) {
-                    console.error(`处理 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
-                    failCount++;
+                // 回退到原来的逐个检测模式
+                for (let i = 0; i < filledCells.length; i++) {
+                    const cell = filledCells[i];
+                    statusEl.textContent = `正在点击填充格子 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
+                    deviceStatusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
+
+                    try {
+                        // 检查颜色
+                        const colorResult = await getColorAt(cell.x, cell.y);
+
+                        if (colorResult.is_white) {
+                            // 只有白色位置才点击
+                            await executeTap(cell.x, cell.y);
+                            successCount++;
+                        } else {
+                            console.log(`跳过已填充的格子 (${cell.row + 1}, ${cell.col + 1})，颜色: RGB(${colorResult.color.r}, ${colorResult.color.g}, ${colorResult.color.b})`);
+                            successCount++; // 算作成功处理，因为已经填充
+                        }
+
+                        // 添加小延迟，避免操作过快
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    } catch (error) {
+                        console.error(`处理 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
+                        failCount++;
+                    }
                 }
             }
 
