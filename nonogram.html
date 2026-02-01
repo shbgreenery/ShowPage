@@ -832,7 +832,8 @@
             startX: 180,
             startY: 890,
             cellWidth: 62,
-            cellHeight: 62
+            cellHeight: 62,
+            whiteThreshold: 240  // 白色阈值，RGB值都大于此值认为是白色
         };
 
         // 保存配置到 localStorage
@@ -973,7 +974,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ x, y })
+                    body: JSON.stringify({ x, y, white_threshold: adbConfig.whiteThreshold })
                 });
 
                 if (!response.ok) {

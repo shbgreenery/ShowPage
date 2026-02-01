@@ -11,7 +11,14 @@ import urllib.parse
 import sys
 import base64
 import io
-from PIL import Image
+
+# PIL依赖检查
+try:
+    from PIL import Image
+except ImportError:
+    print("❌ 错误: 需要安装Pillow库")
+    print("请运行: pip install Pillow")
+    sys.exit(1)
 
 
 class ADBProxyHandler(BaseHTTPRequestHandler):
@@ -139,6 +146,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
                 x = int(data.get('x', 0))
                 y = int(data.get('y', 0))
+                # 获取请求中的白色阈值（可选）
+                white_threshold = int(data.get('white_threshold', 240))
 
                 # 执行ADB截图
                 result = subprocess.run(
@@ -159,7 +168,7 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     pixel_color = pixel_color[:3]
 
                 r, g, b = pixel_color
-                is_white = (r > 240 and g > 240 and b > 240)  # 判断是否为白色
+                is_white = (r > white_threshold and g > white_threshold and b > white_threshold)  # 判断是否为白色
 
                 self.send_json_response({
                     'status': 'ok',
