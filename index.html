@@ -4,136 +4,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>游戏求解器导航</title>
-    <style>
-        :root {
-            --bg-color: #3e3e3e;
-            --primary-color: #333;
-            --accent-color: #4a90e2;
-            --cell-size: 25px;
-            --border-color: #aaa;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            margin: 0;
-            min-height: 100vh;
-        }
-
-        h1 {
-            margin-bottom: 30px;
-            color: var(--accent-color);
-            text-align: center;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-            max-width: 800px;
-            width: 100%;
-        }
-
-        .card {
-            background: white;
-            color: var(--primary-color);
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-        }
-
-        .card h2 {
-            margin-top: 0;
-            color: var(--accent-color);
-        }
-
-        .card p {
-            font-size: 16px;
-            line-height: 1.6;
-            color: #555;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 12px 30px;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-            text-decoration: none;
-            transition: background 0.3s;
-            margin-top: 15px;
-        }
-
-        .btn:hover {
-            background-color: #357abd;
-        }
-
-        .btn-secondary {
-            background-color: #6c757d;
-        }
-
-        .btn-secondary:hover {
-            background-color: #5a6268;
-        }
-
-        .description {
-            text-align: center;
-            max-width: 800px;
-            margin-bottom: 30px;
-            color: #ddd;
-        }
-
-        footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #aaa;
-            font-size: 14px;
-        }
-    </style>
+    <title>数织 (Nonogram) 求解器</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <h1>游戏求解器工具集</h1>
-    
-    <div class="description">
-        <p>这是一个包含多种游戏自动求解器的工具集，目前支持数织(Nonogram)和扫雷(Minesweeper)游戏。</p>
-    </div>
+
+    <h1>数织 (Nonogram) 求解器</h1>
 
     <div class="container">
-        <div class="card">
-            <h2>🔢 数织 (Nonogram) 求解器</h2>
-            <p>数织是一种逻辑益智游戏，根据网格边缘的数字提示，在网格中填充方块以绘制图像。此求解器可以解决各种难度的数织谜题。</p>
-            <a href="nonogram.html" class="btn">前往数织求解器</a>
+        <div class="input-section">
+            <p style="font-size: 0.9em; color: #666;">每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。</p>
+
+            <label for="row-constraints">行约束 (Row Hints):</label>
+            <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
+
+            <label for="col-constraints">列约束 (Column Hints):</label>
+            <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
+
+            <div class="controls">
+                <div class="control-row">
+                    <button class="btn-primary" onclick="window.nonogramCore.solve()">求解</button>
+                    <button onclick="window.nonogramCore.loadSample()">示例</button>
+                    <button onclick="window.nonogramCore.clearConstraints()">清空</button>
+                </div>
+                <div class="control-row">
+                    <button class="btn-warning" onclick="window.adbControls.batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
+                    <button onclick="window.adbControls.batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
+                    <button onclick="window.adbControls.openAdbModal()">ADB 设置</button>
+                </div>
+            </div>
+
+            <!-- 快捷键提示 -->
+            <div id="shortcut-info"
+                style="margin-top: 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border-radius: 6px; font-size: 12px; color: var(--text-secondary);">
+                <strong>快捷键：</strong>
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Ctrl/Cmd</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">Shift</kbd>+
+                <kbd
+                    style="padding: 2px 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 3px; margin: 0 2px;">F</kbd>
+                = 批量点击填充
+                <span id="shortcut-status" style="float: right; color: var(--primary);"></span>
+            </div>
+
+            <div id="status" class="status-msg"></div>
         </div>
 
-        <div class="card">
-            <h2>💣 扫雷 (Minesweeper) 求解器</h2>
-            <p>扫雷是一款经典的逻辑游戏，玩家需要在不触雷的前提下揭开所有安全的格子。此求解器基于高级集合差分算法，可自动分析并解决扫雷局面。</p>
-            <p><small>注意：扫雷求解器是一个用户脚本文件，需要安装到Tampermonkey等用户脚本管理器中使用。</small></p>
-            <a href="minesweeper-solver.user.js" class="btn btn-secondary" download>下载扫雷求解器脚本</a>
+        <div id="result-area"
+            style="flex: 1; min-width: 300px; display: flex; justify-content: center; align-items: flex-start;">
+            <!-- 网格将在这里生成 -->
+            <div
+                style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">
+                结果将显示在这里</div>
         </div>
     </div>
 
-    <footer>
-        <p>游戏求解器工具集 &copy; 2025</p>
-    </footer>
+    <!-- ADB 设置弹窗 -->
+    <div id="adb-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📱 ADB 点击配置</h3>
+                <button class="modal-close" onclick="window.adbControls.closeAdbModal()">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="adb-config">
+                    <div
+                        style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 12px; color: var(--primary); line-height: 1.5; margin-bottom: 16px;">
+                        <strong>使用步骤：</strong><br>
+                        1. 在终端运行：<code>python3 adb_proxy.py</code><br>
+                        2. 确保手机已连接并开启 USB 调试<br>
+                        3. 点击"测试连接"验证<br>
+                        4. 连接成功后点击格子即可自动点击
+                    </div>
+                    <div class="config-row">
+                        <div class="config-group">
+                            <label>代理服务器地址</label>
+                            <input type="text" id="proxy-url" value="http://localhost:8085"
+                                placeholder="http://localhost:8085" onchange="window.adbControls.saveConfig()">
+                        </div>
+                    </div>
+                    <div class="config-row" style="margin-top: 10px;">
+                        <button onclick="window.adbControls.testProxyConnection()" style="flex: 1;" id="test-btn">🧪 测试连接</button>
+                    </div>
+                    <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                        未测试连接
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="window.adbControls.closeAdbModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 命令显示区域 -->
+    <div id="cmd-display" class="cmd-display">
+        <div class="cmd-info" id="cmd-info"></div>
+        <div class="cmd-text" id="cmd-text"></div>
+        <div class="cmd-actions">
+            <button class="copy-btn" onclick="window.adbControls.copyCommand()">复制命令</button>
+            <button class="close-btn" onclick="window.adbControls.hideCommand()">关闭</button>
+        </div>
+    </div>
+
+    <!-- 引入模块化的JavaScript -->
+    <script src="ui-controls.js"></script>
+    <script src="nonogram.js"></script>
+    <script src="adb-controls.js"></script>
+
 </body>
 
 </html>
