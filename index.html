@@ -6,24 +6,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>游戏工具集合</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Grotesk:wght@300;400;600&display=swap');
+
         :root {
-            --bg-primary: #f8fafc;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f1f5f9;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --text-muted: #94a3b8;
-            --border-color: #e2e8f0;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --success: #10b981;
-            --success-hover: #059669;
-            --danger: #ef4444;
-            --danger-hover: #dc2626;
-            --warning: #f59e0b;
-            --warning-hover: #d97706;
-            --secondary: #64748b;
-            --secondary-hover: #475569;
+            /* 赛博游戏厅配色方案 */
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #1a1f2e;
+            --bg-tertiary: #252b3d;
+            --text-primary: #e0e6ff;
+            --text-secondary: #a8b3d3;
+            --text-muted: #6b7aa1;
+            --border-color: #2d3548;
+            --primary: #00ffcc;
+            --primary-hover: #00e6b8;
+            --accent: #ff00ff;
+            --accent-hover: #e600e6;
+            --warning: #ffaa00;
+            --warning-hover: #ff9900;
+            --success: #00ff88;
+            --success-hover: #00e677;
+            --danger: #ff3366;
+            --danger-hover: #ff1a4d;
+
+            /* 渐变和特效 */
+            --gradient-primary: linear-gradient(135deg, #00ffcc 0%, #00ccff 100%);
+            --gradient-accent: linear-gradient(135deg, #ff00ff 0%, #ff6600 100%);
+            --gradient-card: linear-gradient(135deg, rgba(26, 31, 46, 0.9) 0%, rgba(37, 43, 61, 0.9) 100%);
+            --shadow-glow: 0 0 30px rgba(0, 255, 204, 0.3);
+            --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(0, 255, 204, 0.1);
         }
 
         * {
@@ -31,32 +41,162 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-primary);
+            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
             color: var(--text-primary);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
             margin: 0;
             min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 动态背景效果 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 204, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(0, 204, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+            animation: backgroundPulse 10s ease-in-out infinite alternate;
+        }
+
+        @keyframes backgroundPulse {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* 网格背景纹理 */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 255, 204, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 204, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* 主容器 */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            position: relative;
+            z-index: 1;
         }
 
         h1 {
-            margin-bottom: 40px;
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--text-primary);
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
             text-align: center;
-            letter-spacing: -1px;
+            margin-bottom: 20px;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            position: relative;
+            animation: titleGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes titleGlow {
+            0% { text-shadow: 0 0 20px rgba(0, 255, 204, 0.5); }
+            100% { text-shadow: 0 0 40px rgba(0, 255, 204, 0.8), 0 0 60px rgba(0, 255, 204, 0.4); }
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            margin-bottom: 60px;
+            font-weight: 300;
         }
 
         .tools-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 24px;
-            max-width: 1200px;
-            width: 100%;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+
+        /* 工具卡片新设计 */
+        .tool-card {
+            background: var(--gradient-card);
+            border-radius: 20px;
+            padding: 40px 30px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            transform-style: preserve-3d;
+        }
+
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, transparent, rgba(0, 255, 204, 0.1));
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+
+        .tool-card:hover::before {
+            opacity: 1;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-10px) rotateX(5deg);
+            box-shadow: var(--shadow-card);
+            border-color: var(--primary);
+        }
+
+        .tool-card:nth-child(2) {
+            background: linear-gradient(135deg, rgba(255, 0, 255, 0.1) 0%, rgba(255, 102, 0, 0.1) 100%);
+        }
+
+        .tool-card:nth-child(2):hover {
+            border-color: var(--accent);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(255, 0, 255, 0.2);
+        }
+
+        /* 角落装饰 */
+        .tool-card::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: var(--gradient-primary);
+            border-radius: 20px;
+            opacity: 0;
+            z-index: -1;
+            transition: opacity 0.4s ease;
+            filter: blur(10px);
+        }
+
+        .tool-card:hover::after {
+            opacity: 0.3;
         }
 
         .tool-card {
@@ -77,104 +217,267 @@
         }
 
         .tool-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
+            font-size: 3rem;
+            margin-bottom: 20px;
             display: block;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 204, 0.3));
+            transition: all 0.3s ease;
+        }
+
+        .tool-card:hover .tool-icon {
+            transform: scale(1.1) rotate(5deg);
+            filter: drop-shadow(0 0 30px rgba(0, 255, 204, 0.6));
+        }
+
+        .tool-card:nth-child(2) .tool-icon {
+            filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.3));
+        }
+
+        .tool-card:nth-child(2):hover .tool-icon {
+            filter: drop-shadow(0 0 30px rgba(255, 0, 255, 0.6));
         }
 
         .tool-title {
-            font-size: 20px;
-            font-weight: 600;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
             color: var(--text-primary);
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .tool-description {
-            font-size: 14px;
+            font-size: 0.95rem;
             color: var(--text-secondary);
-            line-height: 1.5;
-            margin-bottom: 20px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            font-weight: 300;
         }
 
         .tool-actions {
             display: flex;
-            gap: 12px;
+            gap: 15px;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
             text-decoration: none;
-            border: 1px solid var(--border-color);
+            border: 2px solid transparent;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
         }
 
         .btn-primary {
-            background-color: var(--primary);
-            color: white;
-            border-color: var(--primary);
+            background: var(--gradient-primary);
+            color: var(--bg-primary);
+            border: 2px solid var(--primary);
+            box-shadow: 0 4px 20px rgba(0, 255, 204, 0.3);
         }
 
         .btn-primary:hover {
-            background-color: var(--primary-hover);
-            border-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(0, 255, 204, 0.5);
         }
 
         .btn-secondary {
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-            border-color: var(--border-color);
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+            position: relative;
         }
 
         .btn-secondary:hover {
-            border-color: var(--primary);
-            color: var(--primary);
+            background: var(--primary);
+            color: var(--bg-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(0, 255, 204, 0.4);
+        }
+
+        .tool-card:nth-child(2) .btn-primary {
+            background: var(--gradient-accent);
+            border-color: var(--accent);
+            box-shadow: 0 4px 20px rgba(255, 0, 255, 0.3);
+        }
+
+        .tool-card:nth-child(2) .btn-primary:hover {
+            box-shadow: 0 6px 30px rgba(255, 0, 255, 0.5);
+        }
+
+        .tool-card:nth-child(2) .btn-secondary {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .tool-card:nth-child(2) .btn-secondary:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+            box-shadow: 0 6px 30px rgba(255, 0, 255, 0.4);
+        }
+
+        /* 占位卡片特殊样式 */
+        .tool-card[style*="opacity: 0.6"] {
+            background: linear-gradient(135deg, rgba(107, 122, 161, 0.1) 0%, rgba(107, 122, 161, 0.05) 100%);
+            border: 2px dashed var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .tool-card[style*="opacity: 0.6"]:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: var(--border-color);
         }
 
         .footer {
-            margin-top: 60px;
+            margin-top: 80px;
             text-align: center;
             color: var(--text-muted);
-            font-size: 14px;
+            font-size: 0.9rem;
+            padding: 40px 20px;
+            border-top: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .footer::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 1px;
+            background: var(--gradient-primary);
+        }
+
+        /* 悬浮粒子效果 */
+        .floating-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100vh) rotate(360deg);
+                opacity: 0;
+            }
         }
 
         /* 响应式设计 */
         @media (max-width: 768px) {
-            body {
-                padding: 20px 15px;
-            }
-
-            h1 {
-                font-size: 28px;
-                margin-bottom: 30px;
+            .container {
+                padding: 40px 15px;
             }
 
             .tools-grid {
                 grid-template-columns: 1fr;
-                gap: 20px;
+                gap: 25px;
             }
 
             .tool-card {
-                padding: 24px;
+                padding: 30px 25px;
+            }
+
+            .tool-icon {
+                font-size: 2.5rem;
+            }
+
+            .tool-title {
+                font-size: 1.3rem;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 0.85rem;
+            }
+
+            .tool-actions {
+                gap: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 2rem;
+                letter-spacing: 2px;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+
+            .tool-card {
+                padding: 25px 20px;
             }
         }
     </style>
 </head>
 
 <body>
+    <!-- 悬浮粒子背景 -->
+    <div class="floating-particles" id="particles"></div>
 
-    <h1>🎮 游戏工具集合</h1>
+    <div class="container">
+        <h1>🎮 游戏工具集合</h1>
+        <p class="subtitle">专业的游戏辅助工具，提升你的游戏体验</p>
 
-    <div class="tools-grid">
+        <div class="tools-grid">
         <!-- 数织求解器 -->
-        <div class="tool-card" onclick="openTool('nonogram')">
+        <div class="tool-card">
             <div class="tool-icon">🧩</div>
             <div class="tool-title">数织求解器</div>
             <div class="tool-description">
@@ -186,7 +489,7 @@
         </div>
 
         <!-- 扫雷求解器 -->
-        <div class="tool-card" onclick="openTool('minesweeper')">
+        <div class="tool-card">
             <div class="tool-icon">💣</div>
             <div class="tool-title">扫雷求解器</div>
             <div class="tool-description">
@@ -194,7 +497,7 @@
             </div>
             <div class="tool-actions">
                 <a href="minesweeper.html" class="btn btn-primary">打开工具</a>
-                <a href="#" class="btn btn-secondary" onclick="installUserScript('minesweeper')">安装脚本</a>
+                <a href="#" class="btn btn-secondary" onclick="installUserScript('minesweeper'); return false;">安装脚本</a>
             </div>
         </div>
 
@@ -211,65 +514,328 @@
         </div>
     </div>
 
-    <div class="footer">
-        <p>© 2024 游戏工具集合 | 使用现代Web技术构建</p>
+        <div class="footer">
+            <p>© 2024 游戏工具集合 | 使用现代Web技术构建</p>
+            <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                用❤️为游戏玩家打造 | 赛博游戏厅风格
+            </p>
+        </div>
     </div>
 
     <script>
-        // 打开工具页面
-        function openTool(toolName) {
-            if (toolName === 'nonogram') {
-                window.open('nonogram.html', '_blank');
-            } else if (toolName === 'minesweeper') {
-                window.open('minesweeper.html', '_blank');
-            }
-        }
 
         // 安装用户脚本
         function installUserScript(toolName) {
             if (toolName === 'minesweeper') {
-                // 创建用户脚本下载链接
-                const scriptContent = document.createElement('div');
-                scriptContent.innerHTML = `
-                    <div style="padding: 20px; text-align: center;">
-                        <h3>安装扫雷求解器脚本</h3>
-                        <p>请按照以下步骤安装Tampermonkey插件：</p>
-                        <ol style="text-align: left; max-width: 500px; margin: 0 auto;">
-                            <li>访问 <a href="https://www.tampermonkey.net/" target="_blank">Tampermonkey官网</a></li>
-                            <li>为你的浏览器安装Tampermonkey扩展</li>
-                            <li>点击下面的按钮下载脚本文件</li>
-                            <li>在Tampermonkey中导入脚本</li>
-                        </ol>
-                        <button onclick="downloadUserScript()" style="margin-top: 20px; padding: 12px 24px;">
-                            下载 minesweeper-solver.user.js
+                createInstallModal();
+            }
+        }
+
+        function createInstallModal() {
+            // 创建模态框背景
+            const modal = document.createElement('div');
+            modal.className = 'install-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(10, 14, 26, 0.95);
+                backdrop-filter: blur(20px);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+
+            // 创建内容容器
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+            content.style.cssText = `
+                background: var(--gradient-card);
+                border-radius: 20px;
+                border: 1px solid var(--accent);
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(255, 0, 255, 0.2);
+                max-width: 600px;
+                margin: 20px;
+                padding: 0;
+                transform: scale(0.8) translateY(20px);
+                transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+                position: relative;
+                overflow: hidden;
+            `;
+
+            // 添加关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '✕';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: transparent;
+                border: none;
+                color: var(--text-muted);
+                font-size: 24px;
+                cursor: pointer;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                z-index: 10;
+            `;
+            closeBtn.onmouseover = () => {
+                closeBtn.style.background = 'rgba(255, 0, 255, 0.1)';
+                closeBtn.style.color = 'var(--accent)';
+            };
+            closeBtn.onmouseout = () => {
+                closeBtn.style.background = 'transparent';
+                closeBtn.style.color = 'var(--text-muted)';
+            };
+            closeBtn.onclick = () => closeModal();
+
+            // 创建内容
+            content.innerHTML = `
+                <div style="padding: 50px 40px 40px; text-align: center;">
+                    <div style="
+                        width: 80px;
+                        height: 80px;
+                        margin: 0 auto 30px;
+                        background: var(--gradient-accent);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 40px;
+                        box-shadow: 0 10px 30px rgba(255, 0, 255, 0.3);
+                        animation: iconPulse 2s infinite;
+                    ">
+                        💣
+                    </div>
+                    <h3 style="
+                        font-family: 'Orbitron', monospace;
+                        color: var(--accent);
+                        margin-bottom: 25px;
+                        font-size: 1.8rem;
+                        text-transform: uppercase;
+                        letter-spacing: 2px;
+                    ">安装扫雷求解器</h3>
+                    <p style="
+                        color: var(--text-secondary);
+                        margin-bottom: 35px;
+                        font-size: 1.1rem;
+                        line-height: 1.6;
+                    ">为浏览器安装用户脚本，实现一键扫雷求解功能</p>
+
+                    <div style="
+                        background: rgba(255, 0, 255, 0.1);
+                        border-radius: 15px;
+                        padding: 30px;
+                        margin-bottom: 35px;
+                        border: 1px solid rgba(255, 0, 255, 0.2);
+                    ">
+                        <h4 style="
+                            color: var(--accent);
+                            margin-bottom: 20px;
+                            font-size: 1.2rem;
+                            font-weight: 600;
+                        ">安装步骤</h4>
+                        <div style="display: grid; gap: 15px; text-align: left;">
+                            <div class="step-item" style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 15px;
+                                padding: 15px;
+                                background: rgba(37, 43, 61, 0.5);
+                                border-radius: 10px;
+                                transition: all 0.3s ease;
+                            ">
+                                <div style="
+                                    background: var(--gradient-accent);
+                                    color: white;
+                                    width: 30px;
+                                    height: 30px;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: bold;
+                                    flex-shrink: 0;
+                                ">1</div>
+                                <div>
+                                    <strong style="color: var(--text-primary);">安装Tampermonkey</strong>
+                                    <p style="margin: 5px 0 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                        访问 <a href="https://www.tampermonkey.net/" target="_blank" style="color: var(--accent); text-decoration: none; font-weight: 600;">官网</a> 安装浏览器扩展
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="step-item" style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 15px;
+                                padding: 15px;
+                                background: rgba(37, 43, 61, 0.5);
+                                border-radius: 10px;
+                                transition: all 0.3s ease;
+                            ">
+                                <div style="
+                                    background: var(--gradient-accent);
+                                    color: white;
+                                    width: 30px;
+                                    height: 30px;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: bold;
+                                    flex-shrink: 0;
+                                ">2</div>
+                                <div>
+                                    <strong style="color: var(--text-primary);">下载脚本文件</strong>
+                                    <p style="margin: 5px 0 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                        点击下方按钮下载脚本文件到本地
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="step-item" style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 15px;
+                                padding: 15px;
+                                background: rgba(37, 43, 61, 0.5);
+                                border-radius: 10px;
+                                transition: all 0.3s ease;
+                            ">
+                                <div style="
+                                    background: var(--gradient-accent);
+                                    color: white;
+                                    width: 30px;
+                                    height: 30px;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: bold;
+                                    flex-shrink: 0;
+                                ">3</div>
+                                <div>
+                                    <strong style="color: var(--text-primary);">导入脚本</strong>
+                                    <p style="margin: 5px 0 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                        在Tampermonkey中点击"实用工具" → "从文件安装"
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                        <button id="downloadBtn" onclick="downloadUserScript()" style="
+                            padding: 15px 35px;
+                            background: var(--gradient-accent);
+                            color: white;
+                            border: none;
+                            border-radius: 50px;
+                            font-weight: 700;
+                            font-size: 1.1rem;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            box-shadow: 0 6px 25px rgba(255, 0, 255, 0.4);
+                            position: relative;
+                            overflow: hidden;
+                        ">
+                            <span style="position: relative; z-index: 1;">📥 下载脚本</span>
+                        </button>
+                        <button onclick="window.open('https://www.tampermonkey.net/', '_blank')" style="
+                            padding: 15px 35px;
+                            background: transparent;
+                            color: var(--accent);
+                            border: 2px solid var(--accent);
+                            border-radius: 50px;
+                            font-weight: 700;
+                            font-size: 1.1rem;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                        ">
+                            🌐 访问官网
                         </button>
                     </div>
-                `;
+                </div>
+            `;
 
-                // 创建模态框
-                const modal = document.createElement('div');
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0, 0, 0, 0.5);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 1000;
-                `;
-                modal.appendChild(scriptContent);
-                document.body.appendChild(modal);
+            // 添加动画样式
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes iconPulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                }
+                .step-item:hover {
+                    background: rgba(255, 0, 255, 0.1) !important;
+                    transform: translateX(5px);
+                }
+                #downloadBtn::before {
+                    content: '';
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    width: 0;
+                    height: 0;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.2);
+                    transform: translate(-50%, -50%);
+                    transition: width 0.6s, height 0.6s;
+                }
+                #downloadBtn:hover::before {
+                    width: 300px;
+                    height: 300px;
+                }
+            `;
+            document.head.appendChild(style);
 
-                // 点击背景关闭
-                modal.addEventListener('click', function(e) {
-                    if (e.target === modal) {
+            content.appendChild(closeBtn);
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            // 入场动画
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                content.style.transform = 'scale(1) translateY(0)';
+            }, 10);
+
+            // 点击背景关闭
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // 全局关闭函数
+            window.currentModal = modal;
+        }
+
+        function closeModal() {
+            if (window.currentModal) {
+                const modal = window.currentModal;
+                const content = modal.querySelector('.modal-content');
+                modal.style.opacity = '0';
+                content.style.transform = 'scale(0.8) translateY(20px)';
+                setTimeout(() => {
+                    if (document.body.contains(modal)) {
                         document.body.removeChild(modal);
                     }
-                });
-
+                }, 300);
+                window.currentModal = null;
             }
         }
 
@@ -283,17 +849,131 @@
             a.click();
             document.body.removeChild(a);
 
-            // 显示下载成功提示
-            const modal = document.querySelector('div[style*="position: fixed"]');
-            if (modal) {
-                const button = modal.querySelector('button');
-                button.textContent = '✓ 下载成功！';
-                button.style.backgroundColor = 'var(--success)';
+            // 显示下载成功反馈
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (downloadBtn) {
+                const originalContent = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<span style="position: relative; z-index: 1;">✓ 下载成功!</span>';
+                downloadBtn.style.background = 'var(--gradient-primary)';
+                downloadBtn.style.boxShadow = '0 6px 25px rgba(0, 255, 204, 0.4)';
+
+                // 添加成功动画
+                downloadBtn.style.transform = 'scale(1.05)';
                 setTimeout(() => {
-                    document.body.removeChild(modal);
-                }, 2000);
+                    downloadBtn.style.transform = 'scale(1)';
+                }, 200);
+
+                // 3秒后恢复原状并显示提示
+                setTimeout(() => {
+                    downloadBtn.innerHTML = '<span style="position: relative; z-index: 1;">📥 重新下载</span>';
+                    downloadBtn.style.background = 'var(--gradient-accent)';
+                    downloadBtn.style.boxShadow = '0 6px 25px rgba(255, 0, 255, 0.4)';
+
+                    // 显示完成提示
+                    showCompleteNotification();
+                }, 3000);
             }
         }
+
+        function showCompleteNotification() {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--gradient-card);
+                border: 1px solid var(--success);
+                border-radius: 12px;
+                padding: 20px 25px;
+                color: var(--success);
+                font-weight: 600;
+                box-shadow: 0 6px 25px rgba(0, 255, 136, 0.3);
+                z-index: 2000;
+                transform: translateX(400px);
+                transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            `;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="
+                        width: 30px;
+                        height: 30px;
+                        background: var(--success);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: var(--bg-primary);
+                        font-weight: bold;
+                    ">✓</div>
+                    <div>
+                        <div style="font-weight: 700; margin-bottom: 2px;">下载完成</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 400;">请前往Tampermonkey导入脚本</div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(notification);
+
+            // 滑入动画
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+
+            // 5秒后自动消失
+            setTimeout(() => {
+                notification.style.transform = 'translateX(400px)';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // 创建悬浮粒子效果
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 30;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+
+                // 随机颜色
+                const colors = ['var(--primary)', 'var(--accent)', 'var(--warning)'];
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+
+            // 添加页面加载动画
+            const cards = document.querySelectorAll('.tool-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+
+            // 添加键盘快捷键支持
+            document.addEventListener('keydown', function(e) {
+                // ESC键关闭模态框
+                if (e.key === 'Escape' && window.currentModal) {
+                    closeModal();
+                }
+            });
+        });
     </script>
 
 </body>
