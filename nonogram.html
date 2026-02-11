@@ -832,8 +832,7 @@
             startX: 180,
             startY: 890,
             cellWidth: 62,
-            cellHeight: 62,
-            whiteThreshold: 240  // 白色阈值（后端使用精确值：R>=235, G>=235, B>=210）
+            cellHeight: 62
         };
 
         // 保存配置到 localStorage
@@ -962,119 +961,43 @@
             }
         }
 
-        // 检测指定位置的颜色
-        async function getColorAt(x, y) {
+        // 通过代理执行点击命令（支持单个点或数组）
+        async function executeTap(taps, y) {
             if (!proxyConnected) {
                 throw new Error('代理服务器未连接，请先点击"测试连接"');
             }
 
+            // 统一转换为数组格式
+            let tapArray;
+            if (Array.isArray(taps)) {
+                tapArray = taps;
+            } else if (typeof taps === 'number' && typeof y === 'number') {
+                // 两个数字参数: executeTap(x, y)
+                tapArray = [{ x: taps, y: y }];
+            } else if (taps && typeof taps === 'object') {
+                // 对象参数: executeTap({ x, y })
+                tapArray = [{ x: taps.x || 0, y: taps.y || 0 }];
+            } else {
+                throw new Error('无效的点击参数');
+            }
+
             try {
-                const response = await fetch(`${proxyUrl}/get-color`, {
+                const response = await fetch(`${proxyUrl}/tap`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ x, y, white_threshold: adbConfig.whiteThreshold })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || '颜色检测失败');
-                }
-
-                const result = await response.json();
-                return result;
-            } catch (error) {
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    proxyConnected = false;
-                    const statusEl = document.getElementById('status');
-                    const deviceStatusEl = document.getElementById('device-status');
-                    statusEl.textContent = '⚠ 代理服务器连接中断';
-                    deviceStatusEl.textContent = '⚠ 代理服务器连接中断';
-                    statusEl.className = 'device-disconnected';
-                    deviceStatusEl.className = 'device-disconnected';
-                }
-                // 颜色检测失败时，返回默认的白色结果，确保点击操作继续
-                console.warn(`颜色检测失败 (${x}, ${y}): ${error.message}，默认执行点击`);
-                return {
-                    status: 'ok',
-                    x: x,
-                    y: y,
-                    color: { r: 255, g: 255, b: 255 },
-                    is_white: true
-                };
-            }
-        }
-
-        // 批量检测多个位置的颜色（性能优化）
-        async function getColorsBatch(positions) {
-            if (!proxyConnected) {
-                throw new Error('代理服务器未连接，请先点击"测试连接"');
-            }
-
-            try {
-                const response = await fetch(`${proxyUrl}/get-color`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ positions, white_threshold: adbConfig.whiteThreshold })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || '批量颜色检测失败');
-                }
-
-                const result = await response.json();
-                return result.results;
-            } catch (error) {
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    proxyConnected = false;
-                    const statusEl = document.getElementById('status');
-                    const deviceStatusEl = document.getElementById('device-status');
-                    statusEl.textContent = '⚠ 代理服务器连接中断';
-                    deviceStatusEl.textContent = '⚠ 代理服务器连接中断';
-                    statusEl.className = 'device-disconnected';
-                    deviceStatusEl.className = 'device-disconnected';
-                }
-                // 批量检测失败时，返回默认的白色结果
-                console.warn(`批量颜色检测失败: ${error.message}，默认全部点击`);
-                return positions.map(pos => ({
-                    status: 'ok',
-                    x: pos.x,
-                    y: pos.y,
-                    color: { r: 255, g: 255, b: 255 },
-                    is_white: true
-                }));
-            }
-        }
-
-        // 通过代理执行点击命令
-
-        async function executeTap(x, y) {
-
-            if (!proxyConnected) {
-                throw new Error('代理服务器未连接，请先点击"测试连接"');
-            }
-            const command = `input tap ${x} ${y}`;
-            try {
-
-                const response = await fetch(`${proxyUrl}/execute`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ command })
+                    body: JSON.stringify({ taps: tapArray })
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.message || '命令执行失败');
                 }
+
                 const result = await response.json();
-                if (result.returncode !== 0) {
-                    throw new Error(`命令执行失败: ${result.stderr || result.stdout}`);
+                if (result.failed > 0) {
+                    throw new Error(`执行失败：成功 ${result.success}，失败 ${result.failed}`);
                 }
                 return result;
             } catch (error) {
@@ -1088,9 +1011,7 @@
                     deviceStatusEl.className = 'device-disconnected';
                 }
                 throw error;
-
             }
-
         }
 
         // 连接设备
@@ -1479,7 +1400,7 @@
                     if (currentGrid[r][c] === FILLED) {
                         const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
                         const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
-                        filledCells.push({ row: r, col: c, x: screenX, y: screenY });
+                        filledCells.push({ x: screenX, y: screenY });
                     }
                 }
             }
@@ -1498,55 +1419,36 @@
             batchBtn.disabled = true;
             batchBtn.textContent = '点击中...';
 
-            let successCount = 0;
-            let failCount = 0;
-
-            // 性能优化：批量检测所有格子的颜色
-            statusEl.textContent = `正在批量检测 ${filledCells.length} 个格子的颜色...`;
-            deviceStatusEl.textContent = `批量颜色检测中...`;
+            statusEl.textContent = `正在批量点击 ${filledCells.length} 个填充格子...`;
+            deviceStatusEl.textContent = `批量点击中...`;
             statusEl.className = 'device-connecting';
             deviceStatusEl.className = 'device-connecting';
 
             try {
-                // 准备批量检测的位置数据
-                const positions = filledCells.map(cell => ({ x: cell.x, y: cell.y }));
+                const result = await executeTap(filledCells);
 
-                // 批量检测颜色（只截图一次）
-                const colorResults = await getColorsBatch(positions);
+                // 恢复状态
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> 点击填充格';
 
-                console.log(`批量颜色检测完成，共检测 ${colorResults.length} 个位置`);
-
-                // 执行点击操作
-                for (let i = 0; i < filledCells.length; i++) {
-                    const cell = filledCells[i];
-                    const colorResult = colorResults[i];
-
-                    statusEl.textContent = `正在点击填充格子 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
-                    deviceStatusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${filledCells.length})`;
-
-                    try {
-                        await executeTap(cell.x, cell.y);
-                        successCount++;
-                    } catch (error) {
-                        console.error(`点击 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
-                        failCount++;
-                    }
+                if (result.failed === 0) {
+                    statusEl.textContent = `✓ 批量点击填充完成！成功 ${result.success} 个`;
+                    deviceStatusEl.textContent = `✓ 批量点击完成！成功 ${result.success} 个`;
+                    statusEl.className = 'device-connected';
+                    deviceStatusEl.className = 'device-connected';
+                } else {
+                    statusEl.textContent = `⚠ 批量点击填充完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
+                    deviceStatusEl.textContent = `⚠ 批量点击完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
+                    statusEl.className = 'device-disconnected';
+                    deviceStatusEl.className = 'device-disconnected';
                 }
+
             } catch (error) {
-            }
-
-            // 恢复状态
-            batchBtn.disabled = false;
-            batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> 点击填充格';
-
-            if (failCount === 0) {
-                statusEl.textContent = `✓ 批量点击填充完成！成功 ${successCount} 个`;
-                deviceStatusEl.textContent = `✓ 批量点击完成！成功 ${successCount} 个`;
-                statusEl.className = 'device-connected';
-                deviceStatusEl.className = 'device-connected';
-            } else {
-                statusEl.textContent = `⚠ 批量点击填充完成！成功 ${successCount} 个，失败 ${failCount} 个`;
-                deviceStatusEl.textContent = `⚠ 批量点击完成！成功 ${successCount} 个，失败 ${failCount} 个`;
+                console.error('批量点击失败:', error);
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> 点击填充格';
+                statusEl.textContent = `✗ 批量点击失败: ${error.message}`;
+                deviceStatusEl.textContent = `✗ 批量点击失败: ${error.message}`;
                 statusEl.className = 'device-disconnected';
                 deviceStatusEl.className = 'device-disconnected';
             }
@@ -1585,7 +1487,7 @@
                     if (currentGrid[r][c] === EMPTY) {
                         const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
                         const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
-                        emptyCells.push({ row: r, col: c, x: screenX, y: screenY });
+                        emptyCells.push({ x: screenX, y: screenY });
                     }
                 }
             }
@@ -1604,40 +1506,36 @@
             batchBtn.disabled = true;
             batchBtn.textContent = '点击中...';
 
-            let successCount = 0;
-            let failCount = 0;
+            statusEl.textContent = `正在批量点击 ${emptyCells.length} 个空格子...`;
+            deviceStatusEl.textContent = `批量点击中...`;
+            statusEl.className = 'device-connecting';
+            deviceStatusEl.className = 'device-connecting';
 
-            // 依次点击每个格子
-            for (let i = 0; i < emptyCells.length; i++) {
-                const cell = emptyCells[i];
-                statusEl.textContent = `正在点击空格子 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${emptyCells.length})`;
-                deviceStatusEl.textContent = `正在点击 (${cell.row + 1}, ${cell.col + 1})... (${i + 1}/${emptyCells.length})`;
-                statusEl.className = 'device-connecting';
-                deviceStatusEl.className = 'device-connecting';
+            try {
+                const result = await executeTap(emptyCells);
 
-                try {
-                    await executeTap(cell.x, cell.y);
-                    successCount++;
-                    // 添加小延迟，避免点击过快
-                    // await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (error) {
-                    console.error(`点击 (${cell.row + 1}, ${cell.col + 1}) 失败:`, error);
-                    failCount++;
+                // 恢复状态
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg> 点击空格';
+
+                if (result.failed === 0) {
+                    statusEl.textContent = `✓ 批量点击空格完成！成功 ${result.success} 个`;
+                    deviceStatusEl.textContent = `✓ 批量点击完成！成功 ${result.success} 个`;
+                    statusEl.className = 'device-connected';
+                    deviceStatusEl.className = 'device-connected';
+                } else {
+                    statusEl.textContent = `⚠ 批量点击空格完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
+                    deviceStatusEl.textContent = `⚠ 批量点击完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
+                    statusEl.className = 'device-disconnected';
+                    deviceStatusEl.className = 'device-disconnected';
                 }
-            }
 
-            // 恢复状态
-            batchBtn.disabled = false;
-            batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg> 点击空格';
-
-            if (failCount === 0) {
-                statusEl.textContent = `✓ 批量点击空格完成！成功 ${successCount} 个`;
-                deviceStatusEl.textContent = `✓ 批量点击完成！成功 ${successCount} 个`;
-                statusEl.className = 'device-connected';
-                deviceStatusEl.className = 'device-connected';
-            } else {
-                statusEl.textContent = `⚠ 批量点击空格完成！成功 ${successCount} 个，失败 ${failCount} 个`;
-                deviceStatusEl.textContent = `⚠ 批量点击完成！成功 ${successCount} 个，失败 ${failCount} 个`;
+            } catch (error) {
+                console.error('批量点击失败:', error);
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg> 点击空格';
+                statusEl.textContent = `✗ 批量点击失败: ${error.message}`;
+                deviceStatusEl.textContent = `✗ 批量点击失败: ${error.message}`;
                 statusEl.className = 'device-disconnected';
                 deviceStatusEl.className = 'device-disconnected';
             }
