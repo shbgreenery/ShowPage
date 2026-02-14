@@ -8,6 +8,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import subprocess
 import json
 import sys
+import base64
 
 
 class ADBProxyHandler(BaseHTTPRequestHandler):
@@ -52,6 +53,44 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 self.send_json_response({
                     'status': 'error',
                     'message': str(e)
+                }, 500)
+        elif self.path == '/screenshot':
+            # 获取设备截图
+            try:
+                self.log_message("开始获取设备截图")
+                result = subprocess.run(
+                    ['adb', 'exec-out', 'screencap', '-p'],
+                    capture_output=True,
+                    timeout=10
+                )
+
+                if result.returncode == 0 and result.stdout:
+                    # 将 PNG 数据编码为 Base64
+                    base64_data = base64.b64encode(result.stdout).decode('utf-8')
+                    self.send_json_response({
+                        'status': 'ok',
+                        'data': base64_data,
+                        'format': 'png',
+                        'size': len(result.stdout)
+                    })
+                    self.log_message(f"截图获取成功，大小: {len(result.stdout)} 字节")
+                else:
+                    self.log_message(f"截图失败，返回码: {result.returncode}, 错误: {result.stderr.decode()}")
+                    self.send_json_response({
+                        'status': 'error',
+                        'message': '截图失败，请确保设备已连接且锁屏已解除'
+                    }, 500)
+            except subprocess.TimeoutExpired:
+                self.log_message("截图请求超时")
+                self.send_json_response({
+                    'status': 'error',
+                    'message': '截图请求超时'
+                }, 500)
+            except Exception as e:
+                self.log_message(f"截图异常: {str(e)}")
+                self.send_json_response({
+                    'status': 'error',
+                    'message': f'截图异常: {str(e)}'
                 }, 500)
         else:
             self.send_response(404)

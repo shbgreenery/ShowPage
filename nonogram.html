@@ -765,12 +765,126 @@
             padding: 16px 24px;
             border-top: 1px solid var(--border-color);
         }
+
+        /* 截图选择模态弹窗样式 */
+        .screenshot-modal {
+            max-width: 90vw;
+            max-height: 90vh;
+            width: auto;
+            height: auto;
+        }
+
+        .screenshot-modal .modal-body {
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screenshot-container {
+            position: relative;
+            display: inline-block;
+            background: var(--bg-tertiary);
+        }
+
+        #screenshot-image {
+            max-width: 80vw;
+            max-height: 70vh;
+            display: block;
+            cursor: crosshair;
+            user-select: none; /* Prevent image dragging */
+        }
+
+        .selection-overlay {
+            position: absolute;
+            border: 2px dashed var(--primary);
+            background-color: rgba(59, 130, 246, 0.1);
+            pointer-events: none;
+            display: none;
+            z-index: 1;
+        }
+
+        .selection-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--primary);
+            border: 1px solid var(--bg-secondary);
+            border-radius: 2px;
+            pointer-events: all; /* Allow dragging handles */
+            z-index: 2;
+        }
+
+        /* Top-left */
+        .selection-handle.nw {
+            top: -5px;
+            left: -5px;
+            cursor: nwse-resize;
+        }
+
+        /* Top-right */
+        .selection-handle.ne {
+            top: -5px;
+            right: -5px;
+            cursor: nesw-resize;
+        }
+
+        /* Bottom-left */
+        .selection-handle.sw {
+            bottom: -5px;
+            left: -5px;
+            cursor: nesw-resize;
+        }
+
+        /* Bottom-right */
+        .selection-handle.se {
+            bottom: -5px;
+            right: -5px;
+            cursor: nwse-resize;
+        }
+
+        .selection-preview {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            display: none;
+            z-index: 3;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-top: 20px;
+        }
+
+        .spinner.show {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
 <body>
-
-    <h1>数织 (Nonogram) 求解器</h1>
 
     <div class="container">
         <div class="input-section">
@@ -832,13 +946,23 @@
             startX: 180,
             startY: 890,
             cellWidth: 62,
-            cellHeight: 62
+            cellHeight: 62,
+            gridWidth: 0,  // 游戏网格的实际宽度
+            gridHeight: 0  // 游戏网格的实际高度
         };
 
         // 保存配置到 localStorage
         function saveConfig() {
             proxyUrl = document.getElementById('proxy-url').value;
             localStorage.setItem('proxyUrl', proxyUrl);
+            localStorage.setItem('adbConfig', JSON.stringify({
+                startX: adbConfig.startX,
+                startY: adbConfig.startY,
+                cellWidth: adbConfig.cellWidth,
+                cellHeight: adbConfig.cellHeight,
+                gridWidth: adbConfig.gridWidth,
+                gridHeight: adbConfig.gridHeight
+            }));
         }
 
         // 从 localStorage 加载配置
@@ -847,6 +971,21 @@
             if (savedProxyUrl) {
                 proxyUrl = savedProxyUrl;
                 document.getElementById('proxy-url').value = proxyUrl;
+            }
+
+            const savedAdbConfig = localStorage.getItem('adbConfig');
+            if (savedAdbConfig) {
+                try {
+                    const savedConfig = JSON.parse(savedAdbConfig);
+                    if (savedConfig.startX !== undefined) adbConfig.startX = savedConfig.startX;
+                    if (savedConfig.startY !== undefined) adbConfig.startY = savedConfig.startY;
+                    if (savedConfig.cellWidth !== undefined) adbConfig.cellWidth = savedConfig.cellWidth;
+                    if (savedConfig.cellHeight !== undefined) adbConfig.cellHeight = savedConfig.cellHeight;
+                    if (savedConfig.gridWidth !== undefined) adbConfig.gridWidth = savedConfig.gridWidth;
+                    if (savedConfig.gridHeight !== undefined) adbConfig.gridHeight = savedConfig.gridHeight;
+                } catch (e) {
+                    console.error('加载 ADB 配置失败:', e);
+                }
             }
         }
 
@@ -1593,6 +1732,9 @@
 
                 statusEl.textContent = "求解成功！";
                 resultArea.classList.add('show');
+
+                // 求解成功后自动弹出截图选择窗口
+                openScreenshotModal();
             } catch (e) {
                 statusEl.textContent = e.message;
             }
@@ -2072,6 +2214,450 @@
             }
         }
 
+        // ========== 截图选择功能相关 ==========
+
+        // 截图选择状态
+        let selectionState = {
+            leftX: 0,
+            leftY: 0,
+            rightX: 0,
+            rightY: 0,
+            imageWidth: 0,
+            imageHeight: 0,
+            scale: 1
+        };
+
+        let isDragging = false;
+        let activeHandle = null;
+
+        // 打开截图模态弹窗
+        function openScreenshotModal() {
+            document.getElementById('screenshot-modal-overlay').classList.add('show');
+            getScreenshotAndDisplay();
+        }
+
+        // 关闭截图模态弹窗
+        function closeScreenshotModal() {
+            document.getElementById('screenshot-modal-overlay').classList.remove('show');
+            resetScreenshotState();
+        }
+
+        // 重置截图状态
+        function resetScreenshotState() {
+            const screenshotContainer = document.getElementById('screenshot-container');
+            const screenshotImage = document.getElementById('screenshot-image');
+            const selectionOverlay = document.getElementById('selection-overlay');
+            const selectionPreview = document.getElementById('selection-preview');
+            const confirmBtn = document.getElementById('confirm-selection-btn');
+            const errorElement = document.getElementById('screenshot-error');
+            const instructionEl = document.getElementById('screenshot-instruction');
+
+            screenshotContainer.style.display = 'none';
+            screenshotImage.src = '';
+            selectionOverlay.style.display = 'none';
+            selectionPreview.style.display = 'none';
+            confirmBtn.disabled = true;
+            errorElement.style.display = 'none';
+            instructionEl.style.display = 'block';
+
+            selectionState = {
+                leftX: 0,
+                leftY: 0,
+                rightX: 0,
+                rightY: 0,
+                imageWidth: 0,
+                imageHeight: 0,
+                scale: 1
+            };
+        }
+
+        // 获取截图并显示
+        async function getScreenshotAndDisplay() {
+            const loadingSpinner = document.getElementById('screenshot-loading');
+            const errorElement = document.getElementById('screenshot-error');
+            const screenshotContainer = document.getElementById('screenshot-container');
+            const screenshotImage = document.getElementById('screenshot-image');
+            const confirmBtn = document.getElementById('confirm-selection-btn');
+            const instructionEl = document.getElementById('screenshot-instruction');
+
+            loadingSpinner.classList.add('show');
+            errorElement.style.display = 'none';
+            screenshotContainer.style.display = 'none';
+            confirmBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${proxyUrl}/screenshot`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || '获取截图失败');
+                }
+
+                const data = await response.json();
+                const base64Image = `data:image/png;base64,${data.data}`;
+
+                screenshotImage.src = base64Image;
+                screenshotImage.onload = () => {
+                    loadingSpinner.classList.remove('show');
+                    screenshotContainer.style.display = 'inline-block';
+
+                    // 获取显示尺寸
+                    const rect = screenshotImage.getBoundingClientRect();
+                    selectionState.imageWidth = rect.width;
+                    selectionState.imageHeight = rect.height;
+
+                    // 计算缩放比例（用于将记忆的实际坐标转换为显示坐标）
+                    const scaleX = rect.width / screenshotImage.naturalWidth;
+                    const scaleY = rect.height / screenshotImage.naturalHeight;
+
+                    // 尝试加载记忆的位置
+                    const memory = loadSelectionMemory();
+                    const hasMemory = memory.colMemory || memory.rowMemory;
+
+                    if (hasMemory) {
+                        // 分别加载列记忆（X坐标）和行记忆（Y坐标）
+                        if (memory.colMemory) {
+                            selectionState.leftX = memory.colMemory.startX * scaleX;
+                            // 优先使用记忆的 endX，否则用 startX + gridWidth
+                            selectionState.rightX = (memory.colMemory.endX || (memory.colMemory.startX + memory.colMemory.gridWidth)) * scaleX;
+                            console.log(`已加载列记忆: startX=${memory.colMemory.startX}, endX=${memory.colMemory.endX}`);
+                        } else {
+                            selectionState.leftX = rect.width * 0.2;
+                            selectionState.rightX = rect.width * 0.8;
+                        }
+
+                        if (memory.rowMemory) {
+                            selectionState.leftY = memory.rowMemory.startY * scaleY;
+                            // 优先使用记忆的 endY，否则用 startY + gridHeight
+                            selectionState.rightY = (memory.rowMemory.endY || (memory.rowMemory.startY + memory.rowMemory.gridHeight)) * scaleY;
+                            console.log(`已加载行记忆: startY=${memory.rowMemory.startY}, endY=${memory.rowMemory.endY}`);
+                        } else {
+                            selectionState.leftY = rect.height * 0.2;
+                            selectionState.rightY = rect.height * 0.8;
+                        }
+                    } else {
+                        // 默认在图片的 20% 和 80% 位置
+                        selectionState.leftX = rect.width * 0.2;
+                        selectionState.leftY = rect.height * 0.2;
+                        selectionState.rightX = rect.width * 0.8;
+                        selectionState.rightY = rect.height * 0.8;
+                    }
+
+                    setupDragListeners();
+                    updateSelectionPreview();
+                };
+
+            } catch (error) {
+                console.error('获取截图失败:', error);
+                loadingSpinner.classList.remove('show');
+
+                // 显示友好的提示信息
+                errorElement.innerHTML = `
+                    <div style="padding: 16px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 12px;">📱</div>
+                        <div style="font-weight: 500; margin-bottom: 8px;">无法获取截图</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                            ${error.message || '请确保已连接设备并运行代理服务器'}
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 12px;">
+                            可以关闭此窗口，稍后在 ADB 设置中配置
+                        </div>
+                    </div>
+                `;
+                errorElement.style.display = 'block';
+                instructionEl.style.display = 'none';
+            }
+        }
+
+        // 设置拖动监听器
+        function setupDragListeners() {
+            const handleNW = document.getElementById('handle-nw');  // 左上角
+            const handleSE = document.getElementById('handle-se');  // 右下角
+            const screenshotImage = document.getElementById('screenshot-image');
+
+            // 左上角标记点拖动
+            handleNW.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                activeHandle = 'nw';
+                document.addEventListener('mousemove', handleDrag);
+                document.addEventListener('mouseup', stopDrag);
+            });
+
+            // 右下角标记点拖动
+            handleSE.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                activeHandle = 'se';
+                document.addEventListener('mousemove', handleDrag);
+                document.addEventListener('mouseup', stopDrag);
+            });
+
+            // 监听窗口大小变化，更新图片尺寸
+            window.addEventListener('resize', () => {
+                if (screenshotImage.src) {
+                    const rect = screenshotImage.getBoundingClientRect();
+                    selectionState.imageWidth = rect.width;
+                    selectionState.imageHeight = rect.height;
+                    updateSelectionPreview();
+                }
+            });
+        }
+
+        // 处理拖动
+        function handleDrag(e) {
+            if (!isDragging) return;
+
+            const screenshotImage = document.getElementById('screenshot-image');
+            const rect = screenshotImage.getBoundingClientRect();
+
+            let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
+
+            // 限制在图片范围内
+            mouseX = Math.max(0, Math.min(mouseX, selectionState.imageWidth));
+            mouseY = Math.max(0, Math.min(mouseY, selectionState.imageHeight));
+
+            if (activeHandle === 'nw') {
+                // 左上角点：确保在右下角点的左上方
+                selectionState.leftX = Math.min(mouseX, selectionState.rightX - 20);
+                selectionState.leftY = Math.min(mouseY, selectionState.rightY - 20);
+            } else if (activeHandle === 'se') {
+                // 右下角点：确保在左上角点的右下方
+                selectionState.rightX = Math.max(mouseX, selectionState.leftX + 20);
+                selectionState.rightY = Math.max(mouseY, selectionState.leftY + 20);
+            }
+
+            updateSelectionPreview();
+        }
+
+        // 停止拖动
+        function stopDrag() {
+            isDragging = false;
+            activeHandle = null;
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // 更新选择预览
+        function updateSelectionPreview() {
+            const selectionOverlay = document.getElementById('selection-overlay');
+            const handleNW = document.getElementById('handle-nw');
+            const handleSE = document.getElementById('handle-se');
+            const selectionPreview = document.getElementById('selection-preview');
+            const confirmBtn = document.getElementById('confirm-selection-btn');
+            const screenshotImage = document.getElementById('screenshot-image');
+
+            // 计算选择框的左上角和宽高
+            const x = Math.min(selectionState.leftX, selectionState.rightX);
+            const y = Math.min(selectionState.leftY, selectionState.rightY);
+            const width = Math.abs(selectionState.rightX - selectionState.leftX);
+            const height = Math.abs(selectionState.rightY - selectionState.leftY);
+
+            // 更新选择框
+            selectionOverlay.style.left = x + 'px';
+            selectionOverlay.style.top = y + 'px';
+            selectionOverlay.style.width = width + 'px';
+            selectionOverlay.style.height = height + 'px';
+            selectionOverlay.style.display = 'block';
+
+            // 更新左上角标记点
+            handleNW.style.left = x + 'px';
+            handleNW.style.top = y + 'px';
+
+            // 更新右下角标记点
+            handleSE.style.left = (x + width) + 'px';
+            handleSE.style.top = (y + height) + 'px';
+
+            // 计算实际屏幕坐标（考虑图片缩放）
+            const scaleX = screenshotImage.naturalWidth / selectionState.imageWidth;
+            const scaleY = screenshotImage.naturalHeight / selectionState.imageHeight;
+            const actualX = Math.round(x * scaleX);
+            const actualY = Math.round(y * scaleY);
+            const actualWidth = Math.round(width * scaleX);
+            const actualHeight = Math.round(height * scaleY);
+
+            // 显示坐标信息（实际屏幕坐标）
+            selectionPreview.style.display = 'block';
+            const memory = loadSelectionMemory();
+            const colHint = memory.colMemory ? '✓' : '✗';
+            const rowHint = memory.rowMemory ? '✓' : '✗';
+            const memoryHint = (memory.colMemory || memory.rowMemory) ? ` [列${colHint} 行${rowHint}]` : '';
+            selectionPreview.textContent = `实际范围: ${actualWidth} x ${actualHeight} | 起点: (${actualX}, ${actualY})${memoryHint}`;
+
+            // 启用确认按钮
+            confirmBtn.disabled = false;
+        }
+
+        // 确认选择
+        function confirmSelection() {
+            const screenshotImage = document.getElementById('screenshot-image');
+
+            // 获取图片的原始尺寸（实际屏幕分辨率）
+            const naturalWidth = screenshotImage.naturalWidth;
+            const naturalHeight = screenshotImage.naturalHeight;
+
+            // 计算缩放比例（显示尺寸 vs 原始尺寸）
+            const scaleX = naturalWidth / selectionState.imageWidth;
+            const scaleY = naturalHeight / selectionState.imageHeight;
+
+            // 将选择框坐标转换为实际屏幕坐标
+            const x = Math.min(selectionState.leftX, selectionState.rightX);
+            const y = Math.min(selectionState.leftY, selectionState.rightY);
+            const width = Math.abs(selectionState.rightX - selectionState.leftX);
+            const height = Math.abs(selectionState.rightY - selectionState.leftY);
+
+            const actualX = Math.round(x * scaleX);
+            const actualY = Math.round(y * scaleY);
+            const actualWidth = Math.round(width * scaleX);
+            const actualHeight = Math.round(height * scaleY);
+
+            // 获取当前网格的行列数
+            const rowConstraints = document.getElementById('row-constraints').value;
+            const colConstraints = document.getElementById('col-constraints').value;
+            const rowCount = rowConstraints.trim().split('\n').filter(line => line.trim()).length;
+            const colCount = colConstraints.trim().split('\n').filter(line => line.trim()).length;
+
+            // 计算单元格大小
+            const cellWidth = colCount > 0 ? Math.round(actualWidth / colCount) : 0;
+            const cellHeight = rowCount > 0 ? Math.round(actualHeight / rowCount) : 0;
+
+            // 更新 ADB 配置
+            adbConfig.startX = actualX;
+            adbConfig.startY = actualY;
+            adbConfig.gridWidth = actualWidth;
+            adbConfig.gridHeight = actualHeight;
+            adbConfig.cellWidth = cellWidth;
+            adbConfig.cellHeight = cellHeight;
+
+            // 保存配置到 localStorage
+            localStorage.setItem('adbConfig', JSON.stringify({
+                startX: adbConfig.startX,
+                startY: adbConfig.startY,
+                cellWidth: adbConfig.cellWidth,
+                cellHeight: adbConfig.cellHeight,
+                gridWidth: adbConfig.gridWidth,
+                gridHeight: adbConfig.gridHeight
+            }));
+
+            // 保存起始坐标记忆（按网格列数）
+            saveSelectionMemory(actualX, actualY, actualWidth, actualHeight);
+
+            console.log(`截图选择确认: 显示尺寸=${selectionState.imageWidth}x${selectionState.imageHeight}, 原始尺寸=${naturalWidth}x${naturalHeight}`);
+            console.log(`缩放比例: scaleX=${scaleX.toFixed(4)}, scaleY=${scaleY.toFixed(4)}`);
+            console.log(`选择区域(显示坐标): x=${Math.round(x)}, y=${Math.round(y)}, w=${Math.round(width)}, h=${Math.round(height)}`);
+            console.log(`选择区域(实际坐标): x=${actualX}, y=${actualY}, w=${actualWidth}, h=${actualHeight}`);
+            console.log(`网格大小: ${rowCount}行 x ${colCount}列, 单元格: ${cellWidth}x${cellHeight}`);
+
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = `✓ 已更新网格: 起点(${actualX}, ${actualY}), 尺寸(${actualWidth}x${actualHeight}), 单元格(${cellWidth}x${cellHeight})`;
+            statusEl.className = 'device-connected';
+
+            closeScreenshotModal();
+        }
+
+        // 保存选择坐标记忆（行和列分开记忆）
+        function saveSelectionMemory(startX, startY, gridWidth, gridHeight) {
+            const rowConstraints = document.getElementById('row-constraints').value;
+            const colConstraints = document.getElementById('col-constraints').value;
+
+            // 计算列数（最长行约束字符串的长度）
+            const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
+            let colCount = 0;
+            rows.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > colCount) {
+                    colCount = numStr.length;
+                }
+            });
+
+            // 计算行数（列约束的行数）
+            const cols = colConstraints.trim().split('\n').filter(line => line.trim());
+            const rowCount = cols.length;
+
+            if (colCount > 0 && rowCount > 0) {
+                let memory = {};
+                try {
+                    const saved = localStorage.getItem('selectionMemory');
+                    if (saved) memory = JSON.parse(saved);
+                } catch (e) {}
+
+                const timestamp = Date.now();
+                const endX = startX + gridWidth;
+                const endY = startY + gridHeight;
+
+                // 列记忆：key = "col_列数"，保存 startX, gridWidth, endX
+                memory[`col_${colCount}`] = {
+                    startX: startX,
+                    gridWidth: gridWidth,
+                    endX: endX,
+                    timestamp: timestamp
+                };
+
+                // 行记忆：key = "row_行数"，保存 startY, gridHeight, endY
+                memory[`row_${rowCount}`] = {
+                    startY: startY,
+                    gridHeight: gridHeight,
+                    endY: endY,
+                    timestamp: timestamp
+                };
+
+                localStorage.setItem('selectionMemory', JSON.stringify(memory));
+                console.log(`已保存坐标记忆: 列(${colCount}) -> startX=${startX}, endX=${endX}`);
+                console.log(`已保存坐标记忆: 行(${rowCount}) -> startY=${startY}, endY=${endY}`);
+            }
+        }
+
+        // 加载选择坐标记忆（行和列分开加载）
+        function loadSelectionMemory() {
+            const rowConstraints = document.getElementById('row-constraints').value;
+            const colConstraints = document.getElementById('col-constraints').value;
+
+            // 计算列数
+            const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
+            let colCount = 0;
+            rows.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > colCount) {
+                    colCount = numStr.length;
+                }
+            });
+
+            // 计算行数
+            const cols = colConstraints.trim().split('\n').filter(line => line.trim());
+            const rowCount = cols.length;
+
+            if (colCount > 0 || rowCount > 0) {
+                try {
+                    const saved = localStorage.getItem('selectionMemory');
+                    if (saved) {
+                        const memory = JSON.parse(saved);
+                        const result = { colMemory: null, rowMemory: null };
+
+                        // 加载列记忆
+                        const colKey = `col_${colCount}`;
+                        if (memory[colKey]) {
+                            result.colMemory = memory[colKey];
+                        }
+
+                        // 加载行记忆
+                        const rowKey = `row_${rowCount}`;
+                        if (memory[rowKey]) {
+                            result.rowMemory = memory[rowKey];
+                        }
+
+                        return result;
+                    }
+                } catch (e) {}
+            }
+            return { colMemory: null, rowMemory: null };
+        }
+
         // 页面加载完成后添加事件监听器
         document.addEventListener('DOMContentLoaded', function () {
             // 点击遮罩层关闭弹窗
@@ -2084,10 +2670,21 @@
                 });
             }
 
+            // 截图模态弹窗遮罩关闭
+            const screenshotModalOverlay = document.getElementById('screenshot-modal-overlay');
+            if (screenshotModalOverlay) {
+                screenshotModalOverlay.addEventListener('click', function (e) {
+                    if (e.target === this) {
+                        closeScreenshotModal();
+                    }
+                });
+            }
+
             // ESC 键关闭弹窗
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') {
                     closeAdbModal();
+                    closeScreenshotModal();
                 }
             });
         });
@@ -2128,10 +2725,46 @@
                     <div id="device-status" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
                         未测试连接
                     </div>
+                    <div class="config-row" style="margin-top: 10px;">
+                        <button onclick="openScreenshotModal()" style="flex: 1;" id="screenshot-btn">📸 获取游戏截图</button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button onclick="closeAdbModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 截图选择模态弹窗 -->
+    <div id="screenshot-modal-overlay" class="modal-overlay">
+        <div class="modal screenshot-modal">
+            <div class="modal-header">
+                <h3>📸 选择游戏网格区域</h3>
+                <button class="modal-close" onclick="closeScreenshotModal()">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="screenshot-instruction" style="padding: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 13px; color: var(--primary); margin-bottom: 12px;">
+                    <strong>操作说明：</strong>拖动两个标记点（左上角和右下角）框选游戏网格区域，然后点击"确认选择"。
+                </div>
+                <div class="screenshot-container" id="screenshot-container" style="display: none;">
+                    <img id="screenshot-image" src="" alt="游戏截图" />
+                    <div class="selection-overlay" id="selection-overlay"></div>
+                    <div class="selection-handle nw" id="handle-nw"></div>
+                    <div class="selection-handle se" id="handle-se"></div>
+                    <div class="selection-preview" id="selection-preview"></div>
+                </div>
+                <div id="screenshot-loading" class="spinner"></div>
+                <div id="screenshot-error" style="color: var(--danger); text-align: center; margin-top: 16px; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeScreenshotModal()">取消</button>
+                <button class="btn-primary" onclick="confirmSelection()" id="confirm-selection-btn" disabled>确认选择</button>
             </div>
         </div>
     </div>
