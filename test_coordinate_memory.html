@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坐标记忆系统测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-case h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>数织坐标记忆系统测试</h1>
+
+    <div class="test-section">
+        <h2>测试用例</h2>
+
+        <div class="test-case">
+            <h3>测试用例 1: 5x5 网格</h3>
+            <p>行约束 (不同长度):</p>
+            <textarea id="test1-rows">1 1
+2
+1 1 1
+3
+?</textarea>
+            <p>列约束 (不同长度):</p>
+            <textarea id="test1-cols">1 1
+2
+1 1 1
+3
+?</textarea>
+            <button onclick="testCase(1)">运行测试</button>
+            <div id="test1-result" class="result"></div>
+        </div>
+
+        <div class="test-case">
+            <h3>测试用例 2: 3x3 网格</h3>
+            <p>行约束:</p>
+            <textarea id="test2-rows">-1
+1 1
+3</textarea>
+            <p>列约束:</p>
+            <textarea id="test2-cols">-1
+1 1
+3</textarea>
+            <button onclick="testCase(2)">运行测试</button>
+            <div id="test2-result" class="result"></div>
+        </div>
+
+        <div class="test-case">
+            <h3>测试用例 3: 10x10 网格</h3>
+            <p>行约束:</p>
+            <textarea id="test3-rows">1 1 1
+2 2
+3 3
+1 1 1 1
+5
+1 1 1 1 1
+2 2 2
+1 1 1
+4
+?</textarea>
+            <p>列约束:</p>
+            <textarea id="test3-cols">1 1 1
+2 2
+3 3
+1 1 1 1
+5
+1 1 1 1 1
+2 2 2
+1 1 1
+4
+?</textarea>
+            <button onclick="testCase(3)">运行测试</button>
+            <div id="test3-result" class="result"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>记忆存储查看</h2>
+        <button onclick="showMemory()">显示所有记忆</button>
+        <button onclick="clearMemory()">清除所有记忆</button>
+        <div id="memory-display" class="result"></div>
+    </div>
+
+    <script>
+        // 复制核心函数进行测试
+        function calculateConstraintFeatures(rowConstraints, colConstraints) {
+            // 计算行约束的最长长度
+            const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
+            let rowMaxConstraintLength = 0;
+            rows.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > rowMaxConstraintLength) {
+                    rowMaxConstraintLength = numStr.length;
+                }
+            });
+
+            // 计算列约束的最长长度
+            const cols = colConstraints.trim().split('\n').filter(line => line.trim());
+            let colMaxConstraintLength = 0;
+            cols.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > colMaxConstraintLength) {
+                    colMaxConstraintLength = numStr.length;
+                }
+            });
+
+            const rowCount = rows.length;
+            const colCount = cols.length;
+
+            return {
+                rowCount,
+                colCount,
+                rowMaxConstraintLength,
+                colMaxConstraintLength,
+                colKey: `col_${colCount}_${colMaxConstraintLength}`,
+                rowKey: `row_${rowCount}_${rowMaxConstraintLength}`
+            };
+        }
+
+        function testCase(testNum) {
+            const rowConstraints = document.getElementById(`test${testNum}-rows`).value;
+            const colConstraints = document.getElementById(`test${testNum}-cols`).value;
+            const resultDiv = document.getElementById(`test${testNum}-result`);
+
+            try {
+                const features = calculateConstraintFeatures(rowConstraints, colConstraints);
+
+                // 模拟保存记忆
+                let memory = {};
+                try {
+                    const saved = localStorage.getItem('selectionMemory');
+                    if (saved) memory = JSON.parse(saved);
+                } catch (e) {}
+
+                const timestamp = Date.now();
+                memory[features.colKey] = {
+                    startX: 100 + testNum * 50,
+                    gridWidth: 300 + testNum * 30,
+                    endX: 400 + testNum * 80,
+                    timestamp: timestamp
+                };
+                memory[features.rowKey] = {
+                    startY: 200 + testNum * 40,
+                    gridHeight: 300 + testNum * 20,
+                    endY: 500 + testNum * 60,
+                    timestamp: timestamp
+                };
+
+                localStorage.setItem('selectionMemory', JSON.stringify(memory));
+
+                // 模拟加载记忆
+                const loadedMemory = loadMemoryForTest(features);
+
+                let html = '<div class="success">';
+                html += `<h4>测试成功!</h4>`;
+                html += `<p><strong>网格尺寸:</strong> ${features.rowCount} x ${features.colCount}</p>`;
+                html += `<p><strong>行约束最长长度:</strong> ${features.rowMaxConstraintLength}</p>`;
+                html += `<p><strong>列约束最长长度:</strong> ${features.colMaxConstraintLength}</p>`;
+                html += `<p><strong>列记忆键:</strong> ${features.colKey}</p>`;
+                html += `<p><strong>行记忆键:</strong> ${features.rowKey}</p>`;
+                html += `<p><strong>保存的列记忆:</strong> startX=${memory[features.colKey].startX}, endX=${memory[features.colKey].endX}</p>`;
+                html += `<p><strong>保存的行记忆:</strong> startY=${memory[features.rowKey].startY}, endY=${memory[features.rowKey].endY}</p>`;
+                if (loadedMemory.colMemory) {
+                    html += `<p><strong>加载的列记忆:</strong> ✓ 成功匹配</p>`;
+                } else {
+                    html += `<p><strong>加载的列记忆:</strong> ✗ 匹配失败</p>`;
+                }
+                if (loadedMemory.rowMemory) {
+                    html += `<p><strong>加载的行记忆:</strong> ✓ 成功匹配</p>`;
+                } else {
+                    html += `<p><strong>加载的行记忆:</strong> ✗ 匹配失败</p>`;
+                }
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">错误: ${error.message}</div>`;
+            }
+        }
+
+        function loadMemoryForTest(features) {
+            try {
+                const saved = localStorage.getItem('selectionMemory');
+                if (saved) {
+                    const memory = JSON.parse(saved);
+                    const result = { colMemory: null, rowMemory: null };
+
+                    // 加载列记忆
+                    if (memory[features.colKey]) {
+                        result.colMemory = memory[features.colKey];
+                    }
+
+                    // 加载行记忆
+                    if (memory[features.rowKey]) {
+                        result.rowMemory = memory[features.rowKey];
+                    }
+
+                    return result;
+                }
+            } catch (e) {}
+            return { colMemory: null, rowMemory: null };
+        }
+
+        function showMemory() {
+            try {
+                const saved = localStorage.getItem('selectionMemory');
+                if (saved) {
+                    const memory = JSON.parse(saved);
+                    let html = '<h3>存储的记忆:</h3>';
+                    for (let key in memory) {
+                        html += `<p><strong>${key}:</strong> `;
+                        if (key.startsWith('col_')) {
+                            html += `startX=${memory[key].startX}, endX=${memory[key].endX}`;
+                        } else if (key.startsWith('row_')) {
+                            html += `startY=${memory[key].startY}, endY=${memory[key].endY}`;
+                        }
+                        html += ` (时间戳: ${new Date(memory[key].timestamp).toLocaleString()})</p>`;
+                    }
+                    document.getElementById('memory-display').innerHTML = html;
+                } else {
+                    document.getElementById('memory-display').innerHTML = '<p>没有存储的记忆</p>';
+                }
+            } catch (e) {
+                document.getElementById('memory-display').innerHTML = `<div class="error">读取记忆失败: ${e.message}</div>`;
+            }
+        }
+
+        function clearMemory() {
+            localStorage.removeItem('selectionMemory');
+            document.getElementById('memory-display').innerHTML = '<p>记忆已清除</p>';
+        }
+    </script>
+</body>
+</html>

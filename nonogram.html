@@ -1664,9 +1664,9 @@
             const rowCount = rowConstraints.trim().split('\n').filter(line => line.trim()).length;
             const colCount = colConstraints.trim().split('\n').filter(line => line.trim()).length;
 
-            // 计算单元格大小
-            const cellWidth = colCount > 0 ? Math.round(actualWidth / colCount) : 0;
-            const cellHeight = rowCount > 0 ? Math.round(actualHeight / rowCount) : 0;
+            // 计算单元格大小（保持更高精度）
+            const cellWidth = colCount > 0 ? actualWidth / colCount : 0;
+            const cellHeight = rowCount > 0 ? actualHeight / rowCount : 0;
 
             // 更新 ADB 配置
             adbConfig.startX = actualX;
@@ -1743,16 +1743,16 @@
                 const endX = startX + gridWidth;
                 const endY = startY + gridHeight;
 
-                // 列记忆：key = "col_列数_最长约束长度"，保存 startX, gridWidth, endX
-                memory[`col_${colCount}_${rowMaxConstraintLength}`] = {
+                // 列记忆：key = "col_列数_列约束最长长度"，保存 startX, gridWidth, endX
+                memory[`col_${colCount}_${colMaxConstraintLength}`] = {
                     startX: startX,
                     gridWidth: gridWidth,
                     endX: endX,
                     timestamp: timestamp
                 };
 
-                // 行记忆：key = "row_行数_最长约束长度"，保存 startY, gridHeight, endY
-                memory[`row_${rowCount}_${colMaxConstraintLength}`] = {
+                // 行记忆：key = "row_行数_行约束最长长度"，保存 startY, gridHeight, endY
+                memory[`row_${rowCount}_${rowMaxConstraintLength}`] = {
                     startY: startY,
                     gridHeight: gridHeight,
                     endY: endY,
@@ -1760,8 +1760,8 @@
                 };
 
                 localStorage.setItem('selectionMemory', JSON.stringify(memory));
-                console.log(`已保存坐标记忆: 列(${colCount}x${rowMaxConstraintLength}) -> startX=${startX}, endX=${endX}`);
-                console.log(`已保存坐标记忆: 行(${rowCount}x${colMaxConstraintLength}) -> startY=${startY}, endY=${endY}`);
+                console.log(`已保存坐标记忆: 列(${colCount}x${colMaxConstraintLength}) -> startX=${startX}, endX=${endX}`);
+                console.log(`已保存坐标记忆: 行(${rowCount}x${rowMaxConstraintLength}) -> startY=${startY}, endY=${endY}`);
             }
         }
 
@@ -1803,7 +1803,7 @@
                         const result = { colMemory: null, rowMemory: null };
 
                         // 加载列记忆 - 优先精确匹配，如果找不到则尝试只匹配列数
-                        let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
+                        let colKey = `col_${colCount}_${colMaxConstraintLength}`;
                         if (!memory[colKey]) {
                             // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
                             for (let key in memory) {
@@ -1818,7 +1818,7 @@
                         }
 
                         // 加载行记忆 - 优先精确匹配，如果找不到则尝试只匹配行数
-                        let rowKey = `row_${rowCount}_${colMaxConstraintLength}`;
+                        let rowKey = `row_${rowCount}_${rowMaxConstraintLength}`;
                         if (!memory[rowKey]) {
                             // 如果精确匹配找不到，尝试只匹配行数（向后兼容）
                             for (let key in memory) {
