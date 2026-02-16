@@ -1823,9 +1823,8 @@
             let colMaxConstraintLength = 0;
             cols.forEach(line => {
                 const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                const numStr = nums.join(' ');
-                if (numStr.length > colMaxConstraintLength) {
-                    colMaxConstraintLength = numStr.length;
+                if (nums.length > colMaxConstraintLength) {
+                    colMaxConstraintLength = nums.length;
                 }
             });
 
@@ -1886,9 +1885,8 @@
             let colMaxConstraintLength = 0;
             cols.forEach(line => {
                 const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                const numStr = nums.join(' ');
-                if (numStr.length > colMaxConstraintLength) {
-                    colMaxConstraintLength = numStr.length;
+                if (nums.length > colMaxConstraintLength) {
+                    colMaxConstraintLength = nums.length;
                 }
             });
 
