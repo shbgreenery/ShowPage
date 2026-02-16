@@ -1707,22 +1707,32 @@
             const rowConstraints = document.getElementById('row-constraints').value;
             const colConstraints = document.getElementById('col-constraints').value;
 
-            // 计算列数（最长行约束字符串的长度）
+            // 计算行约束的最长长度
             const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
-            let colCount = 0;
+            let rowMaxConstraintLength = 0;
             rows.forEach(line => {
                 const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
                 const numStr = nums.join(' ');
-                if (numStr.length > colCount) {
-                    colCount = numStr.length;
+                if (numStr.length > rowMaxConstraintLength) {
+                    rowMaxConstraintLength = numStr.length;
                 }
             });
 
-            // 计算行数（列约束的行数）
+            // 计算列约束的最长长度
             const cols = colConstraints.trim().split('\n').filter(line => line.trim());
-            const rowCount = cols.length;
+            let colMaxConstraintLength = 0;
+            cols.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > colMaxConstraintLength) {
+                    colMaxConstraintLength = numStr.length;
+                }
+            });
 
-            if (colCount > 0 && rowCount > 0) {
+            const rowCount = rows.length;  // 行数 = 行约束的数量
+            const colCount = cols.length;  // 列数 = 列约束的数量
+
+            if (rowCount > 0 && colCount > 0) {
                 let memory = {};
                 try {
                     const saved = localStorage.getItem('selectionMemory');
@@ -1733,16 +1743,16 @@
                 const endX = startX + gridWidth;
                 const endY = startY + gridHeight;
 
-                // 列记忆：key = "col_列数"，保存 startX, gridWidth, endX
-                memory[`col_${colCount}`] = {
+                // 列记忆：key = "col_列数_最长约束长度"，保存 startX, gridWidth, endX
+                memory[`col_${colCount}_${rowMaxConstraintLength}`] = {
                     startX: startX,
                     gridWidth: gridWidth,
                     endX: endX,
                     timestamp: timestamp
                 };
 
-                // 行记忆：key = "row_行数"，保存 startY, gridHeight, endY
-                memory[`row_${rowCount}`] = {
+                // 行记忆：key = "row_行数_最长约束长度"，保存 startY, gridHeight, endY
+                memory[`row_${rowCount}_${colMaxConstraintLength}`] = {
                     startY: startY,
                     gridHeight: gridHeight,
                     endY: endY,
@@ -1750,8 +1760,8 @@
                 };
 
                 localStorage.setItem('selectionMemory', JSON.stringify(memory));
-                console.log(`已保存坐标记忆: 列(${colCount}) -> startX=${startX}, endX=${endX}`);
-                console.log(`已保存坐标记忆: 行(${rowCount}) -> startY=${startY}, endY=${endY}`);
+                console.log(`已保存坐标记忆: 列(${colCount}x${rowMaxConstraintLength}) -> startX=${startX}, endX=${endX}`);
+                console.log(`已保存坐标记忆: 行(${rowCount}x${colMaxConstraintLength}) -> startY=${startY}, endY=${endY}`);
             }
         }
 
@@ -1760,36 +1770,64 @@
             const rowConstraints = document.getElementById('row-constraints').value;
             const colConstraints = document.getElementById('col-constraints').value;
 
-            // 计算列数
+            // 计算行约束的最长长度
             const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
-            let colCount = 0;
+            let rowMaxConstraintLength = 0;
             rows.forEach(line => {
                 const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
                 const numStr = nums.join(' ');
-                if (numStr.length > colCount) {
-                    colCount = numStr.length;
+                if (numStr.length > rowMaxConstraintLength) {
+                    rowMaxConstraintLength = numStr.length;
                 }
             });
 
-            // 计算行数
+            // 计算列约束的最长长度
             const cols = colConstraints.trim().split('\n').filter(line => line.trim());
-            const rowCount = cols.length;
+            let colMaxConstraintLength = 0;
+            cols.forEach(line => {
+                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
+                const numStr = nums.join(' ');
+                if (numStr.length > colMaxConstraintLength) {
+                    colMaxConstraintLength = numStr.length;
+                }
+            });
 
-            if (colCount > 0 || rowCount > 0) {
+            const rowCount = rows.length;  // 行数 = 行约束的数量
+            const colCount = cols.length;  // 列数 = 列约束的数量
+
+            if (rowCount > 0 && colCount > 0) {
                 try {
                     const saved = localStorage.getItem('selectionMemory');
                     if (saved) {
                         const memory = JSON.parse(saved);
                         const result = { colMemory: null, rowMemory: null };
 
-                        // 加载列记忆
-                        const colKey = `col_${colCount}`;
+                        // 加载列记忆 - 优先精确匹配，如果找不到则尝试只匹配列数
+                        let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
+                        if (!memory[colKey]) {
+                            // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
+                            for (let key in memory) {
+                                if (key.startsWith(`col_${colCount}_`)) {
+                                    colKey = key;
+                                    break;
+                                }
+                            }
+                        }
                         if (memory[colKey]) {
                             result.colMemory = memory[colKey];
                         }
 
-                        // 加载行记忆
-                        const rowKey = `row_${rowCount}`;
+                        // 加载行记忆 - 优先精确匹配，如果找不到则尝试只匹配行数
+                        let rowKey = `row_${rowCount}_${colMaxConstraintLength}`;
+                        if (!memory[rowKey]) {
+                            // 如果精确匹配找不到，尝试只匹配行数（向后兼容）
+                            for (let key in memory) {
+                                if (key.startsWith(`row_${rowCount}_`)) {
+                                    rowKey = key;
+                                    break;
+                                }
+                            }
+                        }
                         if (memory[rowKey]) {
                             result.rowMemory = memory[rowKey];
                         }
