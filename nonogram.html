@@ -1349,6 +1349,10 @@
             document.getElementById('result-area').classList.remove('show');
             document.getElementById('result-area').innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">结果将显示在这里</div>';
             document.getElementById('status').textContent = '';
+
+            // 重置游戏会话
+            initGameSession();
+            currentGrid = null;
         }
 
         // 处理格子点击
