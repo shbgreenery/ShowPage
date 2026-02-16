@@ -1377,6 +1377,15 @@
 
         // 处理格子点击
         async function handleCellClick(row, col, value) {
+            // 检查是否已点击
+            if (isCellClicked(row, col)) {
+                console.log(`格子 (${row + 1}, ${col + 1}) 已点击，跳过`);
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = `格子 (${row + 1}, ${col + 1}) 已点击`;
+                statusEl.className = 'device-connected';
+                return;
+            }
+
             // 计算屏幕坐标
             const screenX = adbConfig.startX + col * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
             const screenY = adbConfig.startY + row * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
@@ -1387,6 +1396,9 @@
                 statusEl.className = 'device-connecting';
 
                 await executeTap(screenX, screenY);
+
+                // 标记为已点击
+                markCellClicked(row, col);
 
                 statusEl.textContent = `✓ 已点击格子 (${row + 1}, ${col + 1})`;
                 statusEl.className = 'device-connected';
