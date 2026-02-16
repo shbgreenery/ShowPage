@@ -1049,8 +1049,13 @@
                 statusEl.textContent = "求解成功！";
                 resultArea.classList.add('show');
 
-                // 求解成功后自动弹出截图选择窗口
-                openScreenshotModal();
+                // 求解成功后根据会话状态决定是否弹出截图选择窗口
+                if (!gameSession.hasConfigured) {
+                    console.log('首次配置截图区域');
+                    openScreenshotModal();
+                } else {
+                    console.log('使用已配置的截图区域，会话ID:', gameSession.id);
+                }
             } catch (e) {
                 statusEl.textContent = e.message;
             }
@@ -1710,6 +1715,10 @@
 
             // 保存起始坐标记忆（按网格列数）
             saveSelectionMemory(actualX, actualY, actualWidth, actualHeight);
+
+            // 标记会话已配置
+            gameSession.hasConfigured = true;
+            console.log('截图区域已配置，会话ID:', gameSession.id);
 
             console.log(`截图选择确认: 显示尺寸=${selectionState.imageWidth}x${selectionState.imageHeight}, 原始尺寸=${naturalWidth}x${naturalHeight}`);
             console.log(`缩放比例: scaleX=${scaleX.toFixed(4)}, scaleY=${scaleY.toFixed(4)}`);
