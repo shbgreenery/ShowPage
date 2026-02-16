@@ -890,25 +890,38 @@
                 return;
             }
 
-            // 收集所有填充格子的坐标
-            const filledCells = [];
+            // 收集所有填充格子
+            const allFilledCells = [];
             for (let r = 0; r < currentGrid.length; r++) {
                 for (let c = 0; c < currentGrid[r].length; c++) {
                     if (currentGrid[r][c] === FILLED) {
                         const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
                         const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
-                        filledCells.push({ x: screenX, y: screenY });
+                        allFilledCells.push({
+                            x: screenX,
+                            y: screenY,
+                            row: r,
+                            col: c
+                        });
                     }
                 }
             }
 
-            if (filledCells.length === 0) {
-                alert('没有填充的格子！');
+            // 过滤掉已点击的格子
+            const newFilledCells = allFilledCells.filter(cell => !isCellClicked(cell.row, cell.col));
+            const skippedCount = allFilledCells.length - newFilledCells.length;
+
+            if (newFilledCells.length === 0) {
+                alert(skippedCount > 0 ? `所有填充格子都已点击！` : '没有填充的格子！');
                 return;
             }
 
             // 确认操作
-            if (!confirm(`准备批量点击 ${filledCells.length} 个填充格子，确定继续吗？`)) {
+            const confirmMsg = skippedCount > 0
+                ? `准备批量点击 ${newFilledCells.length} 个填充格子（跳过 ${skippedCount} 个已点击），确定继续吗？`
+                : `准备批量点击 ${newFilledCells.length} 个填充格子，确定继续吗？`;
+
+            if (!confirm(confirmMsg)) {
                 return;
             }
 
@@ -916,21 +929,29 @@
             batchBtn.disabled = true;
             batchBtn.textContent = '点击中...';
 
-            statusEl.textContent = `正在批量点击 ${filledCells.length} 个填充格子...`;
+            statusEl.textContent = `正在批量点击 ${newFilledCells.length} 个填充格子...`;
             statusEl.className = 'device-connecting';
 
             try {
-                const result = await executeTap(filledCells);
+                const result = await executeTap(newFilledCells);
+
+                // 标记成功点击的格子
+                newFilledCells.forEach(cell => {
+                    markCellClicked(cell.row, cell.col);
+                });
 
                 // 恢复状态
                 batchBtn.disabled = false;
                 batchBtn.textContent = '点击填充';
 
                 if (result.failed === 0) {
-                    statusEl.textContent = `✓ 批量点击填充完成！成功 ${result.success} 个`;
+                    const msg = skippedCount > 0
+                        ? `✓ 批量点击完成！成功 ${result.success} 个（跳过 ${skippedCount} 个已点击）`
+                        : `✓ 批量点击完成！成功 ${result.success} 个`;
+                    statusEl.textContent = msg;
                     statusEl.className = 'device-connected';
                 } else {
-                    statusEl.textContent = `⚠ 批量点击填充完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
+                    statusEl.textContent = `⚠ 批量点击完成！成功 ${result.success} 个，失败 ${result.failed} 个`;
                     statusEl.className = 'device-disconnected';
                 }
 
