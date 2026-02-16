@@ -788,10 +788,19 @@
             }
         }
 
+        // 初始化游戏会话
+        function initGameSession() {
+            gameSession.id = Date.now().toString();
+            gameSession.hasConfigured = false;
+            clickedCells.clear();
+            console.log('游戏会话已初始化:', gameSession.id);
+        }
+
         // 页面加载时加载配置和设置快捷键
         document.addEventListener('DOMContentLoaded', function () {
             loadConfig();
             setupInputFilters();
+            initGameSession(); // 初始化游戏会话
         });
 
         // 设置输入框限制
@@ -825,6 +834,15 @@
 
         // 当前网格数据（用于批量点击）
         let currentGrid = null;
+
+        // 游戏会话管理
+        let gameSession = {
+            id: null,              // 会话唯一ID
+            hasConfigured: false   // 是否已配置过截图区域
+        };
+
+        // 点击记录管理
+        let clickedCells = new Set(); // 存储 "row,col" 格式的字符串
 
         // 通过代理执行点击命令（支持单个点或数组）
         async function executeTap(taps, y) {
