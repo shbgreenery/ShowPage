@@ -1360,6 +1360,21 @@
             currentGrid = null;
         }
 
+        // 检查格子是否已点击
+        function isCellClicked(row, col) {
+            return clickedCells.has(`${row},${col}`);
+        }
+
+        // 标记格子为已点击
+        function markCellClicked(row, col) {
+            clickedCells.add(`${row},${col}`);
+        }
+
+        // 清除所有点击记录
+        function clearClickedCells() {
+            clickedCells.clear();
+        }
+
         // 处理格子点击
         async function handleCellClick(row, col, value) {
             // 计算屏幕坐标
