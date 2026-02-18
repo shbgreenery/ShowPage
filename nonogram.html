@@ -1806,173 +1806,119 @@
             closeScreenshotModal();
         }
 
-        // 保存选择坐标记忆（行和列分开记忆）
+        // 保存选择坐标记忆（只需要保存 startX）
         function saveSelectionMemory(startX, startY, gridWidth, gridHeight) {
-            const rowConstraints = document.getElementById('row-constraints').value;
-            const colConstraints = document.getElementById('col-constraints').value;
+            const constraintData = parseConstraints();
+            if (!constraintData) return;
 
-            // 计算行约束的最长长度
-            const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
-            let rowMaxConstraintLength = 0;
-            rows.forEach(line => {
-                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                if (nums.length > rowMaxConstraintLength) {
-                    rowMaxConstraintLength = nums.length;
-                }
-            });
+            const { colCount, rowMaxConstraintLength } = constraintData;
 
-            // 计算列约束的最长长度
-            const cols = colConstraints.trim().split('\n').filter(line => line.trim());
-            let colMaxConstraintLength = 0;
-            cols.forEach(line => {
-                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                if (nums.length > colMaxConstraintLength) {
-                    colMaxConstraintLength = nums.length;
-                }
-            });
-
-            const rowCount = rows.length;  // 行数 = 行约束的数量
-            const colCount = cols.length;  // 列数 = 列约束的数量
-
-            if (rowCount > 0 && colCount > 0) {
+            try {
                 let memory = {};
-                try {
-                    const saved = localStorage.getItem('selectionMemory');
-                    if (saved) memory = JSON.parse(saved);
-                } catch (e) { }
+                const saved = localStorage.getItem('selectionMemory');
+                if (saved) memory = JSON.parse(saved);
 
-                const timestamp = Date.now();
-                const endX = startX + gridWidth;
-                const endY = startY + gridHeight;
-
-                // 列记忆：key = "col_列数_行约束最长长度"，保存 startX, gridWidth, endX
-                // 列数决定宽度，行约束长度影响显示布局，所以用行约束长度
+                // 只保存 startX，其他坐标都可以计算出来
                 memory[`col_${colCount}_${rowMaxConstraintLength}`] = {
                     startX: startX,
-                    gridWidth: gridWidth,
-                    endX: endX,
-                    timestamp: timestamp
-                };
-
-                // 行记忆：key = "row_行数_列约束最长长度"，保存 startY, gridHeight, endY
-                // 行数决定高度，列约束长度影响显示布局，所以用列约束长度
-                memory[`row_${rowCount}_${colMaxConstraintLength}`] = {
-                    startY: startY,
-                    gridHeight: gridHeight,
-                    endY: endY,
-                    timestamp: timestamp
+                    timestamp: Date.now()
                 };
 
                 localStorage.setItem('selectionMemory', JSON.stringify(memory));
-                console.log(`已保存坐标记忆: 列(${colCount}x${rowMaxConstraintLength}) -> startX=${startX}, endX=${endX}`);
-                console.log(`已保存坐标记忆: 行(${rowCount}x${colMaxConstraintLength}) -> startY=${startY}, endY=${endY}`);
+                console.log(`已保存 startX 记忆: 列(${colCount}x${rowMaxConstraintLength}) -> startX=${startX}`);
+            } catch (e) {
+                console.warn('保存 startX 记忆失败:', e);
             }
         }
 
-        // 加载选择坐标记忆（行和列分开加载）
+        // 加载选择坐标记忆（只需要记忆 startX）
         function loadSelectionMemory() {
+            const constraintData = parseConstraints();
+            if (!constraintData) {
+                return { colMemory: null, rowMemory: null };
+            }
+
+            const { rowCount, colCount, rowMaxConstraintLength } = constraintData;
+            const startX = loadStartXMemory(colCount, rowMaxConstraintLength);
+            const coordinates = calculateCoordinates(startX, rowCount);
+
+            return {
+                colMemory: { startX, ...coordinates.col },
+                rowMemory: coordinates.row
+            };
+        }
+
+        // 解析约束数据
+        function parseConstraints() {
             const rowConstraints = document.getElementById('row-constraints').value;
             const colConstraints = document.getElementById('col-constraints').value;
 
-            // 计算行约束的最长长度
             const rows = rowConstraints.trim().split('\n').filter(line => line.trim());
-            let rowMaxConstraintLength = 0;
-            rows.forEach(line => {
-                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                if (nums.length > rowMaxConstraintLength) {
-                    rowMaxConstraintLength = nums.length;
-                }
-            });
-
-            // 计算列约束的最长长度
             const cols = colConstraints.trim().split('\n').filter(line => line.trim());
-            let colMaxConstraintLength = 0;
-            cols.forEach(line => {
-                const nums = line.trim().split(/\s+/).filter(n => n && n !== '?');
-                if (nums.length > colMaxConstraintLength) {
-                    colMaxConstraintLength = nums.length;
-                }
-            });
 
-            const rowCount = rows.length;  // 行数 = 行约束的数量
-            const colCount = cols.length;  // 列数 = 列约束的数量
-
-            if (rowCount > 0 && colCount > 0) {
-                try {
-                    const saved = localStorage.getItem('selectionMemory');
-                    if (saved) {
-                        const memory = JSON.parse(saved);
-                        const result = { colMemory: null, rowMemory: null };
-
-                        // 加载列记忆 - 优先精确匹配，如果找不到则尝试只匹配列数
-                        // 列记忆使用 rowMaxConstraintLength（行约束长度影响X坐标布局）
-                        let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
-                        if (!memory[colKey]) {
-                            // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
-                            for (let key in memory) {
-                                if (key.startsWith(`col_${colCount}_`)) {
-                                    colKey = key;
-                                    break;
-                                }
-                            }
-                        }
-                        if (memory[colKey]) {
-                            result.colMemory = memory[colKey];
-                        }
-
-                        // 加载行记忆 - 优先精确匹配，如果找不到则尝试只匹配行数
-                        // 行记忆使用 colMaxConstraintLength（列约束长度影响Y坐标布局）
-                        let rowKey = `row_${rowCount}_${colMaxConstraintLength}`;
-                        if (!memory[rowKey]) {
-                            // 如果精确匹配找不到，尝试只匹配行数（向后兼容）
-                            for (let key in memory) {
-                                if (key.startsWith(`row_${rowCount}_`)) {
-                                    rowKey = key;
-                                    break;
-                                }
-                            }
-                        }
-                        if (memory[rowKey]) {
-                            result.rowMemory = memory[rowKey];
-                        }
-
-                        // 根据行约束数量进行特殊坐标计算
-                        let startX = 170
-                        if (result.colMemory) {
-                            startX = result.colMemory.startX;
-                        }
-                        result.colMemory.startX = startX;
-                        if (rowCount === 15) {
-                            result.colMemory.endX = 1126;
-                            result.rowMemory.endY = 1842;
-                            result.rowMemory.startY = 1842 - (1126 - startX);
-                        } else if (rowCount === 10) {
-                            // 如果行约束有10个，使用固定的endX和endY
-                            result.colMemory.endX = 1123;
-                            result.rowMemory.endY = 1896;
-                            // 保持记忆中的startX，计算startY
-                            result.rowMemory.startY = 1896 - (1123 - startX);
-                        }
-                        return result;
-                    } else {
-                        const result = { colMemory: null, rowMemory: null };
-                        result.colMemory.startX = 170;
-                        if (rowCount === 15) {
-                            result.colMemory.endX = 1126;
-                            result.rowMemory.endY = 1842;
-                            result.rowMemory.startY = 1842 - (1126 - 170);
-                        } else if (rowCount === 10) {
-                            // 如果行约束有10个，使用固定的endX和endY
-                            result.colMemory.endX = 1123;
-                            result.rowMemory.endY = 1896;
-                            // 保持记忆中的startX，计算startY
-                            result.rowMemory.startY = 1896 - (1123 - 170);
-                        }
-                        return result;
-                    }
-                } catch (e) { }
+            if (rows.length === 0 || cols.length === 0) {
+                return null;
             }
-            return { colMemory: null, rowMemory: null };
+
+            const rowMaxConstraintLength = Math.max(...rows.map(line =>
+                line.trim().split(/\s+/).filter(n => n && n !== '?').length
+            ));
+
+            return {
+                rowCount: rows.length,
+                colCount: cols.length,
+                rowMaxConstraintLength
+            };
+        }
+
+        // 只加载 startX 记忆值
+        function loadStartXMemory(colCount, rowMaxConstraintLength) {
+            const DEFAULT_START_X = 170;
+
+            try {
+                const saved = localStorage.getItem('selectionMemory');
+                if (!saved) return DEFAULT_START_X;
+
+                const memory = JSON.parse(saved);
+
+                // 优先精确匹配
+                const exactKey = `col_${colCount}_${rowMaxConstraintLength}`;
+                if (memory[exactKey]?.startX) {
+                    return memory[exactKey].startX;
+                }
+
+                // 回退匹配：只匹配列数
+                for (let key in memory) {
+                    if (key.startsWith(`col_${colCount}_`) && memory[key]?.startX) {
+                        return memory[key].startX;
+                    }
+                }
+            } catch (e) {
+                console.warn('读取 startX 记忆失败:', e);
+            }
+
+            return DEFAULT_START_X;
+        }
+
+        // 根据 startX 和行数计算所有坐标
+        function calculateCoordinates(startX, rowCount) {
+            const COORDINATE_CONFIG = {
+                15: { endX: 1126, endY: 1842 },
+                10: { endX: 1123, endY: 1896 }
+            };
+
+            const config = COORDINATE_CONFIG[rowCount];
+            if (!config) {
+                return { col: {}, row: {} };
+            }
+
+            return {
+                col: { endX: config.endX },
+                row: {
+                    endY: config.endY,
+                    startY: config.endY - (config.endX - startX)
+                }
+            };
         }
 
         // 页面加载完成后添加事件监听器
