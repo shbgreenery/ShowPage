@@ -1937,21 +1937,36 @@
                         }
 
                         // 根据行约束数量进行特殊坐标计算
+                        let startX = 170
                         if (result.colMemory) {
-                            const startX = result.colMemory.startX;
-                        } else {
-                            result.colMemory.startX = 170;
+                            startX = result.colMemory.startX;
                         }
+                        result.colMemory.startX = startX;
                         if (rowCount === 15) {
                             result.colMemory.endX = 1126;
                             result.rowMemory.endY = 1842;
-                            result.rowMemory.startY = endY - (endX - startX);
+                            result.rowMemory.startY = 1842 - (1126 - startX);
                         } else if (rowCount === 10) {
                             // 如果行约束有10个，使用固定的endX和endY
                             result.colMemory.endX = 1123;
                             result.rowMemory.endY = 1896;
                             // 保持记忆中的startX，计算startY
-                            result.rowMemory.startY = endY - (endX - startX);
+                            result.rowMemory.startY = 1896 - (1123 - startX);
+                        }
+                        return result;
+                    } else {
+                        const result = { colMemory: null, rowMemory: null };
+                        result.colMemory.startX = 170;
+                        if (rowCount === 15) {
+                            result.colMemory.endX = 1126;
+                            result.rowMemory.endY = 1842;
+                            result.rowMemory.startY = 1842 - (1126 - 170);
+                        } else if (rowCount === 10) {
+                            // 如果行约束有10个，使用固定的endX和endY
+                            result.colMemory.endX = 1123;
+                            result.rowMemory.endY = 1896;
+                            // 保持记忆中的startX，计算startY
+                            result.rowMemory.startY = 1896 - (1123 - 170);
                         }
                         return result;
                     }
