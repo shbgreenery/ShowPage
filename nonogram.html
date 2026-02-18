@@ -1906,19 +1906,19 @@
 
                         // 加载列记忆 - 优先精确匹配，如果找不到则尝试只匹配列数
                         // 列记忆使用 rowMaxConstraintLength（行约束长度影响X坐标布局）
-                        // let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
-                        // if (!memory[colKey]) {
-                        //     // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
-                        //     for (let key in memory) {
-                        //         if (key.startsWith(`col_${colCount}_`)) {
-                        //             colKey = key;
-                        //             break;
-                        //         }
-                        //     }
-                        // }
-                        // if (memory[colKey]) {
-                        //     result.colMemory = memory[colKey];
-                        // }
+                        let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
+                        if (!memory[colKey]) {
+                            // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
+                            for (let key in memory) {
+                                if (key.startsWith(`col_${colCount}_`)) {
+                                    colKey = key;
+                                    break;
+                                }
+                            }
+                        }
+                        if (memory[colKey]) {
+                            result.colMemory = memory[colKey];
+                        }
 
                         // 加载行记忆 - 优先精确匹配，如果找不到则尝试只匹配行数
                         // 行记忆使用 colMaxConstraintLength（列约束长度影响Y坐标布局）
@@ -1937,26 +1937,22 @@
                         }
 
                         // 根据行约束数量进行特殊坐标计算
-                        if (result.rowMemory) {
+                        if (result.colMemory) {
                             const startX = result.colMemory.startX;
-                            const endX = result.colMemory.endX;
-                            const endY = result.rowMemory.endY;
-
-                            if (rowCount === 15) {
-                                // 如果行约束有15个，使用固定的endX和endY
-                                result.colMemory.endX = 1126;
-                                result.rowMemory.endY = 1842;
-                                // 保持记忆中的startX，计算startY
-                                result.rowMemory.startY = endY - (endX - startX);
-                            } else if (rowCount === 10) {
-                                // 如果行约束有10个，使用固定的endX和endY
-                                result.colMemory.endX = 1123;
-                                result.rowMemory.endY = 1896;
-                                // 保持记忆中的startX，计算startY
-                                result.rowMemory.startY = endY - (endX - startX);
-                            }
+                        } else {
+                            result.colMemory.startX = 170;
                         }
-
+                        if (rowCount === 15) {
+                            result.colMemory.endX = 1126;
+                            result.rowMemory.endY = 1842;
+                            result.rowMemory.startY = endY - (endX - startX);
+                        } else if (rowCount === 10) {
+                            // 如果行约束有10个，使用固定的endX和endY
+                            result.colMemory.endX = 1123;
+                            result.rowMemory.endY = 1896;
+                            // 保持记忆中的startX，计算startY
+                            result.rowMemory.startY = endY - (endX - startX);
+                        }
                         return result;
                     }
                 } catch (e) { }
