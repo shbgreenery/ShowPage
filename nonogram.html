@@ -1061,8 +1061,8 @@
             statusEl.textContent = "正在求解...";
 
             // 1. 解析输入
-            const rowsInput = parseConstraints(document.getElementById('row-constraints').value);
-            const colsInput = parseConstraints(document.getElementById('col-constraints').value);
+            const rowsInput = parseConstraintsText(document.getElementById('row-constraints').value);
+            const colsInput = parseConstraintsText(document.getElementById('col-constraints').value);
 
             if (rowsInput.length === 0 || colsInput.length === 0) {
                 statusEl.textContent = "错误：请输入有效的行和列约束。";
@@ -1287,7 +1287,7 @@
         }
 
         // 解析函数，与Python版本兼容
-        function parseConstraints(text) {
+        function parseConstraintsText(text) {
             if (!text || !text.trim()) return [];
 
             // 按行分割，去除首尾空白
