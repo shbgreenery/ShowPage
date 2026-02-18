@@ -614,7 +614,8 @@
             max-height: 70vh;
             display: block;
             cursor: crosshair;
-            user-select: none; /* Prevent image dragging */
+            user-select: none;
+            /* Prevent image dragging */
         }
 
         .selection-overlay {
@@ -633,7 +634,8 @@
             background-color: var(--primary);
             border: 1px solid var(--bg-secondary);
             border-radius: 2px;
-            pointer-events: all; /* Allow dragging handles */
+            pointer-events: all;
+            /* Allow dragging handles */
             z-index: 2;
         }
 
@@ -683,6 +685,7 @@
             0% {
                 transform: rotate(0deg);
             }
+
             100% {
                 transform: rotate(360deg);
             }
@@ -715,10 +718,11 @@
             </div>
 
             <!-- 服务器配置 -->
-            <div style="margin-top: 12px; padding: 10px 12px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div
+                style="margin-top: 12px; padding: 10px 12px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
                 <label style="font-size: 12px; font-weight: 500; margin-bottom: 6px; display: block;">代理服务器地址</label>
-                <input type="text" id="proxy-url" value="http://localhost:8085"
-                    placeholder="http://localhost:8085" onchange="saveConfig()"
+                <input type="text" id="proxy-url" value="http://localhost:8085" placeholder="http://localhost:8085"
+                    onchange="saveConfig()"
                     style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary);">
             </div>
 
@@ -1835,7 +1839,7 @@
                 try {
                     const saved = localStorage.getItem('selectionMemory');
                     if (saved) memory = JSON.parse(saved);
-                } catch (e) {}
+                } catch (e) { }
 
                 const timestamp = Date.now();
                 const endX = startX + gridWidth;
@@ -1902,19 +1906,19 @@
 
                         // 加载列记忆 - 优先精确匹配，如果找不到则尝试只匹配列数
                         // 列记忆使用 rowMaxConstraintLength（行约束长度影响X坐标布局）
-                        let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
-                        if (!memory[colKey]) {
-                            // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
-                            for (let key in memory) {
-                                if (key.startsWith(`col_${colCount}_`)) {
-                                    colKey = key;
-                                    break;
-                                }
-                            }
-                        }
-                        if (memory[colKey]) {
-                            result.colMemory = memory[colKey];
-                        }
+                        // let colKey = `col_${colCount}_${rowMaxConstraintLength}`;
+                        // if (!memory[colKey]) {
+                        //     // 如果精确匹配找不到，尝试只匹配列数（向后兼容）
+                        //     for (let key in memory) {
+                        //         if (key.startsWith(`col_${colCount}_`)) {
+                        //             colKey = key;
+                        //             break;
+                        //         }
+                        //     }
+                        // }
+                        // if (memory[colKey]) {
+                        //     result.colMemory = memory[colKey];
+                        // }
 
                         // 加载行记忆 - 优先精确匹配，如果找不到则尝试只匹配行数
                         // 行记忆使用 colMaxConstraintLength（列约束长度影响Y坐标布局）
@@ -1932,9 +1936,30 @@
                             result.rowMemory = memory[rowKey];
                         }
 
+                        // 根据行约束数量进行特殊坐标计算
+                        if (result.rowMemory) {
+                            const startX = result.colMemory.startX;
+                            const endX = result.colMemory.endX;
+                            const endY = result.rowMemory.endY;
+
+                            if (rowCount === 15) {
+                                // 如果行约束有15个，使用固定的endX和endY
+                                result.colMemory.endX = 1126;
+                                result.rowMemory.endY = 1842;
+                                // 保持记忆中的startX，计算startY
+                                result.rowMemory.startY = endY - (endX - startX);
+                            } else if (rowCount === 10) {
+                                // 如果行约束有10个，使用固定的endX和endY
+                                result.colMemory.endX = 1123;
+                                result.rowMemory.endY = 1896;
+                                // 保持记忆中的startX，计算startY
+                                result.rowMemory.startY = endY - (endX - startX);
+                            }
+                        }
+
                         return result;
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
             return { colMemory: null, rowMemory: null };
         }
@@ -1973,7 +1998,8 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div id="screenshot-instruction" style="padding: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 13px; color: var(--primary); margin-bottom: 12px;">
+                <div id="screenshot-instruction"
+                    style="padding: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; font-size: 13px; color: var(--primary); margin-bottom: 12px;">
                     <strong>操作说明：</strong>拖动两个标记点（左上角和右下角）框选游戏网格区域，然后点击"确认选择"。
                 </div>
                 <div class="screenshot-container" id="screenshot-container" style="display: none;">
@@ -1984,11 +2010,13 @@
                     <div class="selection-preview" id="selection-preview"></div>
                 </div>
                 <div id="screenshot-loading" class="spinner"></div>
-                <div id="screenshot-error" style="color: var(--danger); text-align: center; margin-top: 16px; display: none;"></div>
+                <div id="screenshot-error"
+                    style="color: var(--danger); text-align: center; margin-top: 16px; display: none;"></div>
             </div>
             <div class="modal-footer">
                 <button onclick="closeScreenshotModal()">取消</button>
-                <button class="btn-primary" onclick="confirmSelection()" id="confirm-selection-btn" disabled>确认选择</button>
+                <button class="btn-primary" onclick="confirmSelection()" id="confirm-selection-btn"
+                    disabled>确认选择</button>
             </div>
         </div>
     </div>
