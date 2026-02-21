@@ -748,10 +748,8 @@
         let adbConfig = {
             startX: 180,
             startY: 890,
-            cellWidth: 62,
-            cellHeight: 62,
-            gridWidth: 0,  // 游戏网格的实际宽度
-            gridHeight: 0  // 游戏网格的实际高度
+            gridWidth: 0,   // 游戏网格的实际宽度
+            gridHeight: 0   // 游戏网格的实际高度
         };
 
         // 保存配置到 localStorage
@@ -761,8 +759,6 @@
             localStorage.setItem('adbConfig', JSON.stringify({
                 startX: adbConfig.startX,
                 startY: adbConfig.startY,
-                cellWidth: adbConfig.cellWidth,
-                cellHeight: adbConfig.cellHeight,
                 gridWidth: adbConfig.gridWidth,
                 gridHeight: adbConfig.gridHeight
             }));
@@ -782,8 +778,6 @@
                     const savedConfig = JSON.parse(savedAdbConfig);
                     if (savedConfig.startX !== undefined) adbConfig.startX = savedConfig.startX;
                     if (savedConfig.startY !== undefined) adbConfig.startY = savedConfig.startY;
-                    if (savedConfig.cellWidth !== undefined) adbConfig.cellWidth = savedConfig.cellWidth;
-                    if (savedConfig.cellHeight !== undefined) adbConfig.cellHeight = savedConfig.cellHeight;
                     if (savedConfig.gridWidth !== undefined) adbConfig.gridWidth = savedConfig.gridWidth;
                     if (savedConfig.gridHeight !== undefined) adbConfig.gridHeight = savedConfig.gridHeight;
                 } catch (e) {
@@ -848,6 +842,16 @@
         // 点击记录管理
         let clickedCells = new Set(); // 存储 "row,col" 格式的字符串
 
+        // 计算格子中心坐标（使用累积方式，避免累积误差）
+        function calculateCellCenter(row, col) {
+            // 使用累积方式：起点 + ((格子索引 + 0.5) * 总长度) / 格子数量
+            // 0.5 表示格子的中心位置
+            const x = Math.round(adbConfig.startX + ((col + 0.5) * adbConfig.gridWidth) / currentGrid[0].length);
+            const y = Math.round(adbConfig.startY + ((row + 0.5) * adbConfig.gridHeight) / currentGrid.length);
+
+            return { x, y };
+        }
+
         // 通过代理执行点击命令（支持单个点或数组）
         async function executeTap(taps, y) {
             // 统一转换为数组格式
@@ -899,11 +903,10 @@
             for (let r = 0; r < currentGrid.length; r++) {
                 for (let c = 0; c < currentGrid[r].length; c++) {
                     if (currentGrid[r][c] === FILLED) {
-                        const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
-                        const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
+                        const coords = calculateCellCenter(r, c);
                         allFilledCells.push({
-                            x: screenX,
-                            y: screenY,
+                            x: coords.x,
+                            y: coords.y,
                             row: r,
                             col: c
                         });
@@ -983,11 +986,10 @@
             for (let r = 0; r < currentGrid.length; r++) {
                 for (let c = 0; c < currentGrid[r].length; c++) {
                     if (currentGrid[r][c] === EMPTY) {
-                        const screenX = adbConfig.startX + c * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
-                        const screenY = adbConfig.startY + r * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
+                        const coords = calculateCellCenter(r, c);
                         allEmptyCells.push({
-                            x: screenX,
-                            y: screenY,
+                            x: coords.x,
+                            y: coords.y,
                             row: r,
                             col: c
                         });
@@ -1433,8 +1435,9 @@
             }
 
             // 计算屏幕坐标
-            const screenX = adbConfig.startX + col * adbConfig.cellWidth + Math.floor(adbConfig.cellWidth / 2);
-            const screenY = adbConfig.startY + row * adbConfig.cellHeight + Math.floor(adbConfig.cellHeight / 2);
+            const coords = calculateCellCenter(row, col);
+            const screenX = coords.x;
+            const screenY = coords.y;
 
             try {
                 const statusEl = document.getElementById('status');
@@ -1764,24 +1767,16 @@
             const rowCount = rowConstraints.trim().split('\n').filter(line => line.trim()).length;
             const colCount = colConstraints.trim().split('\n').filter(line => line.trim()).length;
 
-            // 计算单元格大小（保持更高精度）
-            const cellWidth = colCount > 0 ? actualWidth / colCount : 0;
-            const cellHeight = rowCount > 0 ? actualHeight / rowCount : 0;
-
-            // 更新 ADB 配置
+            // 更新 ADB 配置（使用累积方式，不再需要cellWidth和cellHeight）
             adbConfig.startX = actualX;
             adbConfig.startY = actualY;
             adbConfig.gridWidth = actualWidth;
             adbConfig.gridHeight = actualHeight;
-            adbConfig.cellWidth = cellWidth;
-            adbConfig.cellHeight = cellHeight;
 
             // 保存配置到 localStorage
             localStorage.setItem('adbConfig', JSON.stringify({
                 startX: adbConfig.startX,
                 startY: adbConfig.startY,
-                cellWidth: adbConfig.cellWidth,
-                cellHeight: adbConfig.cellHeight,
                 gridWidth: adbConfig.gridWidth,
                 gridHeight: adbConfig.gridHeight
             }));
@@ -1797,10 +1792,10 @@
             console.log(`缩放比例: scaleX=${scaleX.toFixed(4)}, scaleY=${scaleY.toFixed(4)}`);
             console.log(`选择区域(显示坐标): x=${Math.round(x)}, y=${Math.round(y)}, w=${Math.round(width)}, h=${Math.round(height)}`);
             console.log(`选择区域(实际坐标): x=${actualX}, y=${actualY}, w=${actualWidth}, h=${actualHeight}`);
-            console.log(`网格大小: ${rowCount}行 x ${colCount}列, 单元格: ${cellWidth}x${cellHeight}`);
+            console.log(`网格大小: ${rowCount}行 x ${colCount}列, 总尺寸: ${actualWidth}x${actualHeight}`);
 
             const statusEl = document.getElementById('status');
-            statusEl.textContent = `✓ 已更新网格: 起点(${actualX}, ${actualY}), 尺寸(${actualWidth}x${actualHeight}), 单元格(${cellWidth}x${cellHeight})`;
+            statusEl.textContent = `✓ 已更新网格: 起点(${actualX}, ${actualY}), 总尺寸(${actualWidth}x${actualHeight})`;
             statusEl.className = 'device-connected';
 
             closeScreenshotModal();
