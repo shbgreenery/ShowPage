@@ -1781,8 +1781,8 @@
                 gridHeight: adbConfig.gridHeight
             }));
 
-            // 保存起始坐标记忆（按网格列数）
-            saveSelectionMemory(actualX, actualY, actualWidth, actualHeight);
+            // 保存起始坐标记忆（只需要保存 startX）
+            saveSelectionMemory(actualX);
 
             // 标记会话已配置
             gameSession.hasConfigured = true;
@@ -1802,7 +1802,7 @@
         }
 
         // 保存选择坐标记忆（只需要保存 startX）
-        function saveSelectionMemory(startX, startY, gridWidth, gridHeight) {
+        function saveSelectionMemory(startX) {
             const constraintData = parseConstraints();
             if (!constraintData) return;
 
