@@ -1300,11 +1300,19 @@
                 const tokens = line.trim().split(/\s+/);
                 const result = [];
 
+                // 特殊处理：如果一行只有一个 "0"，表示该行/列为空，返回空数组
+                if (tokens.length === 1 && tokens[0] === '0') {
+                    return []; // 空数组表示没有填充的格子
+                }
+
                 for (const token of tokens) {
                     if (token === '?') {
                         result.push(-1); // 使用-1表示未确定的约束
                     } else if (/\d+/.test(token)) {
-                        result.push(Number(token));
+                        // 忽略单独的 0（它应该在前面被处理）
+                        if (token !== '0' || tokens.length > 1) {
+                            result.push(Number(token));
+                        }
                     }
                 }
 
@@ -1856,7 +1864,7 @@
             }
 
             const rowMaxConstraintLength = Math.max(...rows.map(line =>
-                line.trim().split(/\s+/).filter(n => n && n !== '?').length
+                line.trim().split(/\s+/).filter(n => n !== '' && n !== '?').length
             ));
 
             return {
