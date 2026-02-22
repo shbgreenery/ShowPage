@@ -888,6 +888,11 @@
             return result;
         }
 
+        // 包装原生 confirm 为异步函数
+        async function asyncConfirm(message) {
+            return await showCustomConfirm(message);
+        }
+
         // 批量点击所有填充格子
         async function batchTapAllFilled() {
             const statusEl = document.getElementById('status');
@@ -925,10 +930,12 @@
 
             // 确认操作
             const confirmMsg = skippedCount > 0
-                ? `准备批量点击 ${newFilledCells.length} 个填充格子（跳过 ${skippedCount} 个已点击），确定继续吗？`
-                : `准备批量点击 ${newFilledCells.length} 个填充格子，确定继续吗？`;
+                ? `准备批量点击 ${newFilledCells.length} 个填充格子（跳过 ${skippedCount} 个已点击），确定继续吗？\n\n提示：按回车键确认，按ESC键取消`
+                : `准备批量点击 ${newFilledCells.length} 个填充格子，确定继续吗？\n\n提示：按回车键确认，按ESC键取消`;
 
-            if (!confirm(confirmMsg)) {
+            // 创建自定义确认框以支持回车键
+            const userChoice = await asyncConfirm(confirmMsg);
+            if (!userChoice) {
                 return;
             }
 
@@ -1008,10 +1015,12 @@
 
             // 确认操作
             const confirmMsg = skippedCount > 0
-                ? `准备批量点击 ${newEmptyCells.length} 个空格子（跳过 ${skippedCount} 个已点击），确定继续吗？`
-                : `准备批量点击 ${newEmptyCells.length} 个空格子，确定继续吗？`;
+                ? `准备批量点击 ${newEmptyCells.length} 个空格子（跳过 ${skippedCount} 个已点击），确定继续吗？\n\n提示：按回车键确认，按ESC键取消`
+                : `准备批量点击 ${newEmptyCells.length} 个空格子，确定继续吗？\n\n提示：按回车键确认，按ESC键取消`;
 
-            if (!confirm(confirmMsg)) {
+            // 创建自定义确认框以支持回车键
+            const userChoice = await asyncConfirm(confirmMsg);
+            if (!userChoice) {
                 return;
             }
 
@@ -1465,6 +1474,86 @@
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = `✗ 点击失败: ${error.message}`;
                 statusEl.className = 'device-disconnected';
+            }
+        }
+
+        // ========== 自定义确认框功能 ==========
+
+        let customConfirmResolve = null;
+
+        // 显示自定义确认框，支持回车键确认
+        function showCustomConfirm(message) {
+            return new Promise((resolve) => {
+                customConfirmResolve = resolve;
+
+                // 创建模态框
+                const modalOverlay = document.createElement('div');
+                modalOverlay.className = 'modal-overlay show';
+                modalOverlay.id = 'custom-confirm-overlay';
+
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.style.maxWidth = '400px';
+
+                modal.innerHTML = `
+                    <div class="modal-header">
+                        <h3>确认操作</h3>
+                    </div>
+                    <div class="modal-body">
+                        <div style="white-space: pre-line; line-height: 1.5;">${message}</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button onclick="confirmCustomConfirm(false)" id="confirm-cancel-btn">取消</button>
+                        <button class="btn-primary" onclick="confirmCustomConfirm(true)" id="confirm-ok-btn">确认</button>
+                    </div>
+                `;
+
+                modalOverlay.appendChild(modal);
+                document.body.appendChild(modalOverlay);
+
+                // 自动聚焦确认按钮
+                setTimeout(() => {
+                    document.getElementById('confirm-ok-btn').focus();
+                }, 100);
+
+                // 添加键盘事件监听
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        confirmCustomConfirm(true);
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        confirmCustomConfirm(false);
+                    }
+                };
+
+                document.addEventListener('keydown', handleKeyDown);
+                modalOverlay._handleKeyDown = handleKeyDown;
+
+                // 点击遮罩关闭
+                modalOverlay.addEventListener('click', function(e) {
+                    if (e.target === modalOverlay) {
+                        confirmCustomConfirm(false);
+                    }
+                });
+            });
+        }
+
+        // 确认自定义确认框
+        function confirmCustomConfirm(result) {
+            const modalOverlay = document.getElementById('custom-confirm-overlay');
+            if (modalOverlay) {
+                // 移除键盘事件监听
+                if (modalOverlay._handleKeyDown) {
+                    document.removeEventListener('keydown', modalOverlay._handleKeyDown);
+                }
+
+                document.body.removeChild(modalOverlay);
+            }
+
+            if (customConfirmResolve) {
+                customConfirmResolve(result);
+                customConfirmResolve = null;
             }
         }
 
@@ -1936,10 +2025,19 @@
                 });
             }
 
-            // ESC 键关闭弹窗
+            // ESC 键关闭弹窗，回车键确认选择
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') {
                     closeScreenshotModal();
+                } else if (e.key === 'Enter') {
+                    // 在截图选择模态框显示时，回车键确认选择
+                    const modalOverlay = document.getElementById('screenshot-modal-overlay');
+                    if (modalOverlay && modalOverlay.classList.contains('show')) {
+                        const confirmBtn = document.getElementById('confirm-selection-btn');
+                        if (confirmBtn && !confirmBtn.disabled) {
+                            confirmSelection();
+                        }
+                    }
                 }
             });
         });
