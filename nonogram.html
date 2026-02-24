@@ -715,6 +715,9 @@
                     <button class="btn-warning" onclick="batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
                     <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
                 </div>
+                <div class="control-row">
+                    <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个填充</button>
+                </div>
             </div>
 
             <!-- 服务器配置 -->
@@ -1438,6 +1441,65 @@
         // 清除所有点击记录
         function clearClickedCells() {
             clickedCells.clear();
+        }
+
+        // 点击下一个未点击的填充格子
+        async function tapNextFilled() {
+            const statusEl = document.getElementById('status');
+            const nextBtn = document.getElementById('tap-next-filled-btn');
+
+            if (!currentGrid) {
+                alert('点击下一个填充前，请先求解数织！');
+                return;
+            }
+
+            // 查找第一个未点击的填充格子
+            let nextCell = null;
+            for (let r = 0; r < currentGrid.length; r++) {
+                for (let c = 0; c < currentGrid[r].length; c++) {
+                    if (currentGrid[r][c] === FILLED && !isCellClicked(r, c)) {
+                        nextCell = { row: r, col: c };
+                        break;
+                    }
+                }
+                if (nextCell) break;
+            }
+
+            if (!nextCell) {
+                alert('没有未点击的填充格子了！');
+                return;
+            }
+
+            // 计算屏幕坐标
+            const coords = calculateCellCenter(nextCell.row, nextCell.col);
+            const screenX = coords.x;
+            const screenY = coords.y;
+
+            // 禁用按钮防止重复点击
+            nextBtn.disabled = true;
+            nextBtn.textContent = '点击中...';
+
+            statusEl.textContent = `正在点击格子 (${nextCell.row + 1}, ${nextCell.col + 1})...`;
+            statusEl.className = 'device-connecting';
+
+            try {
+                await executeTap(screenX, screenY);
+
+                // 标记为已点击
+                markCellClicked(nextCell.row, nextCell.col);
+
+                statusEl.textContent = `✓ 已点击格子 (${nextCell.row + 1}, ${nextCell.col + 1})`;
+                statusEl.className = 'device-connected';
+
+            } catch (error) {
+                console.error('点击失败:', error);
+                statusEl.textContent = `✗ 点击失败: ${error.message}`;
+                statusEl.className = 'device-disconnected';
+            } finally {
+                // 恢复按钮状态
+                nextBtn.disabled = false;
+                nextBtn.textContent = '下一个填充';
+            }
         }
 
         // 处理格子点击
