@@ -175,19 +175,26 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 # DOWN 事件 - 手指按下
                 down_event = f'input motionevent DOWN {start_x} {start_y}'
 
-                # MOVE 事件 - 移动到中间点（分几步移动）
+                # MOVE 事件 - 根据距离计算步数，每步约100像素
                 move_events = []
-                steps = 5  # 分5步移动到中间点
-                for i in range(1, steps + 1):
-                    progress = i / steps
+
+                # 计算起点到中点的步数
+                distance_to_mid = abs(mid_x - start_x) + abs(mid_y - start_y)
+                steps_to_mid = max(2, (distance_to_mid + 99) // 100)  # 至少2步
+
+                for i in range(1, steps_to_mid + 1):
+                    progress = i / steps_to_mid
                     curr_x = int(start_x + (mid_x - start_x) * progress)
                     curr_y = int(start_y + (mid_y - start_y) * progress)
                     move_events.append(
                         f'input motionevent MOVE {curr_x} {curr_y}')
 
-                # 继续移动到终点（分几步移动）
-                for i in range(1, steps + 1):
-                    progress = i / steps
+                # 计算中点到终点的步数
+                distance_to_end = abs(end_x - mid_x) + abs(end_y - mid_y)
+                steps_to_end = max(2, (distance_to_end + 99) // 100)  # 至少2步
+
+                for i in range(1, steps_to_end + 1):
+                    progress = i / steps_to_end
                     curr_x = int(mid_x + (end_x - mid_x) * progress)
                     curr_y = int(mid_y + (end_y - mid_y) * progress)
                     move_events.append(
@@ -202,7 +209,7 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 # 直接执行事件序列，不添加延迟
                 shell_script = '\n'.join(all_events)
 
-                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')
+                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件 (起点→中点: {steps_to_mid}步, 中点→终点: {steps_to_end}步)')
 
                 result = subprocess.run(
                     ['adb', 'shell', shell_script],

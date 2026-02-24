@@ -159,6 +159,60 @@
         .reset-btn:hover {
             background: #c82333;
         }
+
+        /* 开关样式 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+            margin-left: 10px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* 性能控制区域样式 */
+        .status-section h3 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 16px;
+        }
     </style>
 </head>
 
@@ -175,6 +229,10 @@
                 <strong>当前点位:</strong>
                 <span class="current-point" id="currentPoint">等待开始</span>
             </div>
+            <div class="status-item">
+                <strong>性能模式:</strong>
+                <span style="color: #28a745; font-weight: bold;">⚡ 极速模式</span>
+            </div>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill">0%</div>
             </div>
@@ -189,6 +247,7 @@
             </button>
         </div>
 
+        
         <div class="log-section" id="logSection">
         </div>
     </div>
@@ -204,6 +263,7 @@
         let filteredPoints = [];
         let currentRound = 0;
 
+        
         // 从 image_coordinate_picker.py 移植的 points 数据
         const points = [];
         for (let row = 0; row < 19; row++) {
@@ -220,7 +280,8 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', function () {
             updateStatus();
-            addLog('系统初始化完成，ADB 代理已就绪', 'success');
+            addLog('🚀 系统初始化完成，ADB 代理已就绪', 'success');
+            addLog('⚡ 已启用极速模式，基于命令完成状态执行', 'success');
         });
 
         // 更新状态显示
@@ -438,19 +499,27 @@
             addLog('⏹️ 自动求解已停止', 'info');
         }
 
-        // 自动求解循环
+        // 自动求解循环 - 极速版本
         async function autoSolveLoop() {
             while (isAutoSolving) {
                 await solveNextPoint();
 
-                // 如果还在自动求解模式，等待一段时间后处理下一个点
+                // 如果还在自动求解模式，极短延迟后立即处理下一个点
                 if (isAutoSolving) {
-                    await sleep(200); // 等待200ms再处理下一个点
+                    await minimalDelay(20); // 仅20ms延迟，让界面能响应
                 }
             }
         }
 
-        // 求解下一个点
+        // 最小延迟函数 - 仅用于防止界面卡顿
+        async function minimalDelay(ms = 10) {
+            // ADB命令已经是同步的，这里只需要极短延迟避免界面卡顿
+            if (ms > 0) {
+                await sleep(ms);
+            }
+        }
+
+        // 求解下一个点 - 极速版本
         async function solveNextPoint() {
             if (isSolving) return;
 
@@ -463,11 +532,11 @@
             }
 
             const [x, y] = filteredPoints[currentPointIndex];
-            addLog(`开始处理第 ${currentPointIndex + 1} 个点: (${x}, ${y})`, 'info');
+            addLog(`处理第 ${currentPointIndex + 1} 个点: (${x}, ${y})`, 'info');
 
             // 第一步：从 (100, 1720) 拖动到 (x, y+300)
-            addLog(`执行拖动: (100, 1720) → (${x}, ${y + 300})`, 'info');
-            const swipeSuccess = await performSwipe(100, 1720, x, y + 300, 400);
+            // ADB代理会等待命令完成才返回，不需要额外等待
+            const swipeSuccess = await performSwipe(100, 1720, x, y + 300, 300);
 
             if (!swipeSuccess) {
                 addLog('拖动操作失败，停止本次求解', 'error');
@@ -478,11 +547,10 @@
                 return;
             }
 
-            // 等待拖动完成
-            await sleep(200);
+            // 极短延迟，仅避免界面卡顿
+            await minimalDelay(5);
 
             // 第二步：点击 (1050, 400)
-            addLog('执行点击: (1050, 400)', 'info');
             const tapSuccess = await performTap(1050, 400);
 
             if (!tapSuccess) {
@@ -493,9 +561,8 @@
                 }
                 return;
             }
-            await sleep(200);
 
-            addLog(`第 ${currentPointIndex + 1} 个点处理完成`, 'success');
+            addLog(`✓ 第 ${currentPointIndex + 1} 个点完成`, 'success');
 
             // 移动到下一个点
             currentPointIndex = (currentPointIndex + 1) % filteredPoints.length;
@@ -503,12 +570,11 @@
             // 如果完成一轮，显示完成信息
             if (currentPointIndex === 0) {
                 currentRound++;
-                addLog(`🎉 第 ${currentRound} 轮所有点位处理完成`, 'success');
+                addLog(`🎉 第 ${currentRound} 轮完成！`, 'success');
 
                 // 如果还在自动求解模式，开始新一轮
                 if (isAutoSolving) {
-                    addLog('🔄 开始新一轮循环，重新进行颜色过滤', 'info');
-                    await sleep(1000); // 等待1秒再开始新一轮
+                    await minimalDelay(50); // 轮次间稍长一点的延迟
                     await filterPointsByColor();
 
                     if (filteredPoints.length === 0) {
