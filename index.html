@@ -345,6 +345,34 @@
             box-shadow: 0 6px 30px rgba(255, 0, 255, 0.4);
         }
 
+        /* 第三个卡片（拼图求解器）特殊样式 */
+        .tool-card:nth-child(3) {
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.1) 0%, rgba(0, 204, 255, 0.1) 100%);
+        }
+
+        .tool-card:nth-child(3):hover {
+            border-color: var(--success);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(0, 255, 136, 0.2);
+        }
+
+        .tool-card:nth-child(3) .tool-icon {
+            filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.3));
+        }
+
+        .tool-card:nth-child(3):hover .tool-icon {
+            filter: drop-shadow(0 0 30px rgba(0, 255, 136, 0.6));
+        }
+
+        .tool-card:nth-child(3) .btn-primary {
+            background: linear-gradient(135deg, var(--success) 0%, var(--primary) 100%);
+            border-color: var(--success);
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .tool-card:nth-child(3) .btn-primary:hover {
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.5);
+        }
+
         /* 占位卡片特殊样式 */
         .tool-card[style*="opacity: 0.6"] {
             background: linear-gradient(135deg, rgba(107, 122, 161, 0.1) 0%, rgba(107, 122, 161, 0.05) 100%);
@@ -478,7 +506,7 @@
         <div class="tools-grid">
         <!-- 数织求解器 -->
         <div class="tool-card">
-            <div class="tool-icon">🧩</div>
+            <div class="tool-icon">🔲</div>
             <div class="tool-title">数织求解器</div>
             <div class="tool-description">
                 智能数织谜题求解器，支持ADB自动点击功能，可配置颜色检测阈值，大幅提升游戏效率。
@@ -498,6 +526,18 @@
             <div class="tool-actions">
                 <a href="minesweeper.html" class="btn btn-primary">打开工具</a>
                 <a href="#" class="btn btn-secondary" onclick="installUserScript('minesweeper'); return false;">安装脚本</a>
+            </div>
+        </div>
+
+        <!-- 拼图暴力求解器 -->
+        <div class="tool-card">
+            <div class="tool-icon">🧩</div>
+            <div class="tool-title">拼图暴力求解器</div>
+            <div class="tool-description">
+                智能拼图求解器，支持颜色过滤和ADB自动操作。每轮自动截图分析，只处理目标颜色点位，大幅提升求解效率。
+            </div>
+            <div class="tool-actions">
+                <a href="puzzle_solver.html" class="btn btn-primary">打开工具</a>
             </div>
         </div>
 
