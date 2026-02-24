@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拼图暴力求解器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .status-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .status-item strong {
+            color: #495057;
+            display: inline-block;
+            width: 120px;
+        }
+
+        .current-point {
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .solve-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .solve-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .solve-btn:active {
+            transform: translateY(0);
+        }
+
+        .solve-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .log-section {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #4a5568;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #a0aec0;
+            margin-right: 10px;
+        }
+
+        .log-success {
+            color: #48bb78;
+        }
+
+        .log-error {
+            color: #fc8181;
+        }
+
+        .log-info {
+            color: #63b3ed;
+        }
+
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 20px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .reset-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .reset-btn:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧩 拼图暴力求解器</h1>
+
+        <div class="status-section">
+            <div class="status-item">
+                <strong>当前进度:</strong>
+                <span id="progressText">0 / 0</span>
+            </div>
+            <div class="status-item">
+                <strong>当前点位:</strong>
+                <span class="current-point" id="currentPoint">等待开始</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="solve-btn" id="solveBtn" onclick="toggleAutoSolve()">
+                🚀 开始自动求解
+            </button>
+            <button class="reset-btn" onclick="resetProgress()">
+                🔄 重置进度
+            </button>
+        </div>
+
+        <div class="log-section" id="logSection">
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentPointIndex = 0;
+        let isSolving = false;
+        let isAutoSolving = false;
+        let autoSolveTimer = null;
+        const ADB_PROXY_URL = 'http://localhost:8085';
+        let allPoints = [];
+        let filteredPoints = [];
+        let currentRound = 0;
+
+        // 从 image_coordinate_picker.py 移植的 points 数据
+        const points = [];
+        for (let row = 0; row < 19; row++) {
+            const y = 580 + row * 54;
+            const sx = row % 2 === 0 ? 110 : 200;
+            for (let col = 0; col < (6 - row % 2); col++) {
+                points.push([sx + col * 185, y]);
+            }
+        }
+        // 初始化所有点
+        allPoints = [...points];
+        filteredPoints = [...points];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function () {
+            updateStatus();
+            addLog('系统初始化完成，ADB 代理已就绪', 'success');
+        });
+
+        // 更新状态显示
+        function updateStatus() {
+            const totalPoints = filteredPoints.length;
+            document.getElementById('progressText').textContent = `${currentPointIndex + 1} / ${totalPoints}`;
+            document.getElementById('progressFill').style.width = `${((currentPointIndex + 1) / totalPoints) * 100}%`;
+            document.getElementById('progressFill').textContent = `${Math.round(((currentPointIndex + 1) / totalPoints) * 100)}%`;
+
+            if (filteredPoints.length > 0) {
+                const [x, y] = filteredPoints[currentPointIndex];
+                document.getElementById('currentPoint').textContent = `(${x}, ${y})`;
+            }
+        }
+
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logSection = document.getElementById('logSection');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+
+            logEntry.innerHTML = `
+                <span class="log-time">${timeStr}</span>
+                ${message}
+            `;
+
+            logSection.appendChild(logEntry);
+            logSection.scrollTop = logSection.scrollHeight;
+        }
+
+        // 执行拖动操作
+        async function performSwipe(startX, startY, endX, endY, duration = 500) {
+            try {
+                const response = await fetch(`${ADB_PROXY_URL}/swipe`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        startX: startX,
+                        startY: startY,
+                        endX: endX,
+                        endY: endY,
+                        duration: duration
+                    })
+                });
+
+                const result = await response.json();
+                return result.status === 'ok';
+            } catch (error) {
+                addLog(`拖动操作失败: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // 执行点击操作
+        async function performTap(x, y) {
+            try {
+                const response = await fetch(`${ADB_PROXY_URL}/tap`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        taps: [{ x: x, y: y }]
+                    })
+                });
+
+                const result = await response.json();
+                return result.status === 'ok';
+            } catch (error) {
+                addLog(`点击操作失败: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // 获取截图
+        async function takeScreenshot() {
+            try {
+                const response = await fetch(`${ADB_PROXY_URL}/screenshot`, {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result.status === 'ok' && result.data) {
+                    return result.data; // 返回base64编码的图片数据
+                } else {
+                    throw new Error('截图获取失败');
+                }
+            } catch (error) {
+                addLog(`截图获取失败: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        // 获取指定坐标的颜色
+        async function getPixelColor(imageData, x, y) {
+            // 创建canvas来解析图片
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // 解析base64图片
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = `data:image/png;base64,${imageData}`;
+            });
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // 获取像素数据
+            const pixelData = ctx.getImageData(x, y, 1, 1).data;
+            return {
+                r: pixelData[0],
+                g: pixelData[1],
+                b: pixelData[2]
+            };
+        }
+
+        // 过滤点：只保留颜色为 (36, 138, 114) 的点
+        async function filterPointsByColor() {
+            addLog('📸 开始获取截图进行颜色过滤', 'info');
+
+            const screenshot = await takeScreenshot();
+            if (!screenshot) {
+                addLog('⚠️ 截图失败，使用所有点作为备选', 'error');
+                filteredPoints = [...allPoints];
+                return;
+            }
+
+            addLog('🔍 开始分析点位颜色...', 'info');
+            const targetColor = { r: 36, g: 138, b: 114 };
+            filteredPoints = [];
+            let matchedCount = 0;
+
+            for (let i = 0; i < allPoints.length; i++) {
+                const [x, y] = allPoints[i];
+                try {
+                    const color = await getPixelColor(screenshot, x, y);
+
+                    // 检查颜色是否匹配（允许小幅误差）
+                    const diff = Math.abs(color.r - targetColor.r) +
+                                Math.abs(color.g - targetColor.g) +
+                                Math.abs(color.b - targetColor.b);
+
+                    if (diff <= 10) { // 允许10的颜色误差
+                        filteredPoints.push([x, y]);
+                        matchedCount++;
+                    }
+
+                    // 每处理10个点更新一次进度
+                    if ((i + 1) % 10 === 0) {
+                        addLog(`已检查 ${i + 1}/${allPoints.length} 个点，找到 ${matchedCount} 个匹配点`, 'info');
+                    }
+                } catch (error) {
+                    addLog(`检查点 (${x}, ${y}) 时出错: ${error.message}`, 'error');
+                }
+            }
+
+            addLog(`✅ 颜色过滤完成！从 ${allPoints.length} 个点中筛选出 ${filteredPoints.length} 个有效点`, 'success');
+        }
+
+        // 切换自动求解状态
+        function toggleAutoSolve() {
+            if (isAutoSolving) {
+                stopAutoSolve();
+            } else {
+                startAutoSolve();
+            }
+        }
+
+        // 开始自动求解
+        async function startAutoSolve() {
+            isAutoSolving = true;
+            const solveBtn = document.getElementById('solveBtn');
+            solveBtn.textContent = '⏹️ 停止求解';
+            solveBtn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+
+            addLog(`🚀 开始第 ${currentRound + 1} 轮自动求解`, 'info');
+
+            // 每轮开始时进行颜色过滤
+            await filterPointsByColor();
+
+            if (filteredPoints.length === 0) {
+                addLog('⚠️ 没有找到匹配颜色的点，停止求解', 'error');
+                stopAutoSolve();
+                return;
+            }
+
+            // 重置当前点位索引
+            currentPointIndex = 0;
+            updateStatus();
+
+            // 开始自动执行循环
+            await autoSolveLoop();
+        }
+
+        // 停止自动求解
+        function stopAutoSolve() {
+            isAutoSolving = false;
+            const solveBtn = document.getElementById('solveBtn');
+            solveBtn.textContent = '🚀 开始自动求解';
+            solveBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
+            addLog('⏹️ 自动求解已停止', 'info');
+        }
+
+        // 自动求解循环
+        async function autoSolveLoop() {
+            while (isAutoSolving) {
+                await solveNextPoint();
+
+                // 如果还在自动求解模式，等待一段时间后处理下一个点
+                if (isAutoSolving) {
+                    await sleep(200); // 等待200ms再处理下一个点
+                }
+            }
+        }
+
+        // 求解下一个点
+        async function solveNextPoint() {
+            if (isSolving) return;
+
+            isSolving = true;
+
+            if (filteredPoints.length === 0) {
+                addLog('没有可处理的点', 'error');
+                isSolving = false;
+                return;
+            }
+
+            const [x, y] = filteredPoints[currentPointIndex];
+            addLog(`开始处理第 ${currentPointIndex + 1} 个点: (${x}, ${y})`, 'info');
+
+            // 第一步：从 (100, 1720) 拖动到 (x, y+300)
+            addLog(`执行拖动: (100, 1720) → (${x}, ${y + 300})`, 'info');
+            const swipeSuccess = await performSwipe(100, 1720, x, y + 300, 400);
+
+            if (!swipeSuccess) {
+                addLog('拖动操作失败，停止本次求解', 'error');
+                isSolving = false;
+                if (isAutoSolving) {
+                    stopAutoSolve();
+                }
+                return;
+            }
+
+            // 等待拖动完成
+            await sleep(200);
+
+            // 第二步：点击 (1050, 400)
+            addLog('执行点击: (1050, 400)', 'info');
+            const tapSuccess = await performTap(1050, 400);
+
+            if (!tapSuccess) {
+                addLog('点击操作失败，停止本次求解', 'error');
+                isSolving = false;
+                if (isAutoSolving) {
+                    stopAutoSolve();
+                }
+                return;
+            }
+            await sleep(200);
+
+            addLog(`第 ${currentPointIndex + 1} 个点处理完成`, 'success');
+
+            // 移动到下一个点
+            currentPointIndex = (currentPointIndex + 1) % filteredPoints.length;
+
+            // 如果完成一轮，显示完成信息
+            if (currentPointIndex === 0) {
+                currentRound++;
+                addLog(`🎉 第 ${currentRound} 轮所有点位处理完成`, 'success');
+
+                // 如果还在自动求解模式，开始新一轮
+                if (isAutoSolving) {
+                    addLog('🔄 开始新一轮循环，重新进行颜色过滤', 'info');
+                    await sleep(1000); // 等待1秒再开始新一轮
+                    await filterPointsByColor();
+
+                    if (filteredPoints.length === 0) {
+                        addLog('⚠️ 新一轮没有找到匹配颜色的点，停止求解', 'error');
+                        stopAutoSolve();
+                        isSolving = false;
+                        return;
+                    }
+
+                    currentPointIndex = 0;
+                }
+            }
+
+            updateStatus();
+            isSolving = false;
+        }
+
+        // 重置进度
+        function resetProgress() {
+            // 停止自动求解
+            if (isAutoSolving) {
+                stopAutoSolve();
+            }
+
+            currentPointIndex = 0;
+            currentRound = 0;
+            filteredPoints = [...allPoints];
+            updateStatus();
+            addLog('进度已重置', 'info');
+        }
+
+        // 辅助函数：延迟
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function (event) {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                toggleAutoSolve();
+            } else if (event.code === 'KeyR' && event.ctrlKey) {
+                event.preventDefault();
+                resetProgress();
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -66,7 +66,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
                 if result.returncode == 0 and result.stdout:
                     # 将 PNG 数据编码为 Base64
-                    base64_data = base64.b64encode(result.stdout).decode('utf-8')
+                    base64_data = base64.b64encode(
+                        result.stdout).decode('utf-8')
                     self.send_json_response({
                         'status': 'ok',
                         'data': base64_data,
@@ -75,7 +76,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     })
                     self.log_message(f"截图获取成功，大小: {len(result.stdout)} 字节")
                 else:
-                    self.log_message(f"截图失败，返回码: {result.returncode}, 错误: {result.stderr.decode()}")
+                    self.log_message(
+                        f"截图失败，返回码: {result.returncode}, 错误: {result.stderr.decode()}")
                     self.send_json_response({
                         'status': 'error',
                         'message': '截图失败，请确保设备已连接且锁屏已解除'
@@ -150,6 +152,89 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': 'error',
                     'message': str(e)
                 }, 500)
+        elif self.path == '/swipe':
+            try:
+                # 读取请求体
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                data = json.loads(post_data.decode('utf-8'))
+
+                start_x = data.get('startX', 0)
+                start_y = data.get('startY', 0)
+                end_x = data.get('endX', 0)
+                end_y = data.get('endY', 0)
+
+                # 使用 motionevent 模拟手指拖动
+                mid_x = 100
+                mid_y = 1500
+
+                self.log_message(
+                    f'执行手指拖动：({start_x}, {start_y}) → ({mid_x}, {mid_y}) → ({end_x}, {end_y})')
+
+                # 构建简化的 motionevent 事件序列
+                # DOWN 事件 - 手指按下
+                down_event = f'input motionevent DOWN {start_x} {start_y}'
+
+                # MOVE 事件 - 移动到中间点（分几步移动）
+                move_events = []
+                steps = 5  # 分5步移动到中间点
+                for i in range(1, steps + 1):
+                    progress = i / steps
+                    curr_x = int(start_x + (mid_x - start_x) * progress)
+                    curr_y = int(start_y + (mid_y - start_y) * progress)
+                    move_events.append(
+                        f'input motionevent MOVE {curr_x} {curr_y}')
+
+                # 继续移动到终点（分几步移动）
+                for i in range(1, steps + 1):
+                    progress = i / steps
+                    curr_x = int(mid_x + (end_x - mid_x) * progress)
+                    curr_y = int(mid_y + (end_y - mid_y) * progress)
+                    move_events.append(
+                        f'input motionevent MOVE {curr_x} {curr_y}')
+
+                # UP 事件 - 手指抬起
+                up_event = f'input motionevent UP {end_x} {end_y}'
+
+                # 构建完整的事件序列
+                all_events = [down_event] + move_events + [up_event]
+
+                # 直接执行事件序列，不添加延迟
+                shell_script = '\n'.join(all_events)
+
+                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')
+
+                result = subprocess.run(
+                    ['adb', 'shell', shell_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode == 0:
+                    self.send_json_response({
+                        'status': 'ok',
+                        'message': '手指拖动执行成功',
+                        'path': f'({start_x},{start_y}) → ({mid_x},{mid_y}) → ({end_x},{end_y})'
+                    })
+                else:
+                    self.log_message(
+                        f"motionevent 拖动失败，返回码: {result.returncode}, 错误: {result.stderr}")
+                    self.send_json_response({
+                        'status': 'error',
+                        'message': '拖动执行失败'
+                    }, 500)
+
+            except subprocess.TimeoutExpired:
+                self.send_json_response({
+                    'status': 'error',
+                    'message': '拖动命令执行超时'
+                }, 500)
+            except Exception as e:
+                self.send_json_response({
+                    'status': 'error',
+                    'message': str(e)
+                }, 500)
         else:
             self.send_response(404)
             self.end_headers()
@@ -173,6 +258,12 @@ def main():
 
     print(f"🚀 ADB 代理服务器启动在 http://localhost:{port}")
     print(f"📱 请确保手机已连接并开启 USB 调试")
+    print(f"📡 支持的 API:")
+    print(f"   GET  /health    - 健康检查")
+    print(f"   GET  /devices   - 获取设备列表")
+    print(f"   GET  /screenshot - 获取设备截图")
+    print(f"   POST /tap       - 执行点击操作")
+    print(f"   POST /swipe     - 执行拖动操作")
     print(f"💡 按 Ctrl+C 停止服务器")
 
     try:
