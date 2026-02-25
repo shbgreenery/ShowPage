@@ -384,9 +384,8 @@
             }
         }
 
-        // 获取指定坐标的颜色
-        async function getPixelColor(imageData, x, y) {
-            // 创建canvas来解析图片
+        // 从 base64 图片数据创建 canvas（只需要调用一次）
+        async function createCanvasFromImage(imageData) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
@@ -402,6 +401,11 @@
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
 
+            return { canvas, ctx };
+        }
+
+        // 获取指定坐标的颜色（接收 canvas 作为参数）
+        function getPixelColor(canvas, ctx, x, y) {
             // 获取像素数据
             const pixelData = ctx.getImageData(x, y, 1, 1).data;
             return {
@@ -422,7 +426,10 @@
                 return;
             }
 
+            addLog('🎨 生成图片 canvas...', 'info');
+            const { canvas, ctx } = await createCanvasFromImage(screenshot);
             addLog('🔍 开始分析点位颜色...', 'info');
+
             const targetColor = { r: 36, g: 138, b: 114 };
             filteredPoints = [];
             let matchedCount = 0;
@@ -430,7 +437,7 @@
             for (let i = 0; i < allPoints.length; i++) {
                 const [x, y] = allPoints[i];
                 try {
-                    const color = await getPixelColor(screenshot, x, y);
+                    const color = getPixelColor(canvas, ctx, x, y);
 
                     // 检查颜色是否匹配（允许小幅误差）
                     const diff = Math.abs(color.r - targetColor.r) +
