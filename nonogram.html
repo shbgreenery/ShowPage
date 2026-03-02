@@ -1472,8 +1472,6 @@
 
             // 计算屏幕坐标
             const coords = calculateCellCenter(nextCell.row, nextCell.col);
-            const screenX = coords.x;
-            const screenY = coords.y;
 
             // 禁用按钮防止重复点击
             nextBtn.disabled = true;
@@ -1483,7 +1481,7 @@
             statusEl.className = 'device-connecting';
 
             try {
-                await executeTap(screenX, screenY);
+                await executeTap(coords.x, coords.y);
 
                 // 标记为已点击
                 markCellClicked(nextCell.row, nextCell.col);
@@ -1515,15 +1513,13 @@
 
             // 计算屏幕坐标
             const coords = calculateCellCenter(row, col);
-            const screenX = coords.x;
-            const screenY = coords.y;
 
             try {
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = `正在点击格子 (${row + 1}, ${col + 1})...`;
                 statusEl.className = 'device-connecting';
 
-                await executeTap(screenX, screenY);
+                await executeTap(coords.x, coords.y);
 
                 // 标记为已点击
                 markCellClicked(row, col);
