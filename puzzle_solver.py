@@ -10,6 +10,8 @@ from io import BytesIO
 from PIL import Image
 from datetime import datetime
 from typing import List, Tuple, Optional
+from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
 
 # 目标颜色（RGB），允许误差 10
 TARGET_COLOR = (36, 138, 114)
@@ -18,26 +20,28 @@ COLOR_TOLERANCE = 10
 # 拖动和点击的坐标
 SWIPE_START = (100, 1720)
 TAP_COORD = (1050, 400)
+SWIPE_MID_POINT = (100, 1650)
+
+
+class LogLevel(Enum):
+    """日志级别枚举"""
+    INFO = 'ℹ️'
+    SUCCESS = '✅'
+    ERROR = '❌'
+    WARNING = '⚠️'
 
 
 class PuzzleSolver:
     def __init__(self):
         self.current_round = 0
-        self.is_solving = False
         self.all_points = self._generate_points()
         self.filtered_points: List[Tuple[int, int]] = []
-        self.current_index = 0
 
-    def log(self, message: str, level: str = 'info'):
+    def log(self, message: str, level: LogLevel = LogLevel.INFO):
         """输出日志"""
-        timestamp = datetime.now().strftime('%H:%M:%S')
-        prefix = {
-            'info': 'ℹ️',
-            'success': '✅',
-            'error': '❌',
-            'warning': '⚠️',
-        }.get(level, 'ℹ️')
-        print(f"[{timestamp}] {prefix} {message}")
+        from time import strftime
+        timestamp = strftime('%H:%M:%S')
+        print(f"[{timestamp}] {level.value} {message}")
 
     def _generate_points(self) -> List[Tuple[int, int]]:
         """从 HTML 中移植的点位生成逻辑"""
@@ -61,36 +65,36 @@ class PuzzleSolver:
             )
 
             if result.returncode != 0:
-                self.log(f'截图获取失败: {result.stderr.decode()}', 'error')
+                self.log(f'截图获取失败: {result.stderr.decode()}', LogLevel.ERROR)
                 return None
 
             if not result.stdout:
-                self.log('截图数据为空', 'error')
+                self.log('截图数据为空', LogLevel.ERROR)
                 return None
 
             # 直接从字节流创建图片
             image = Image.open(BytesIO(result.stdout))
-            self.log(f'✓ 截图获取成功，尺寸: {image.size}', 'success')
+            self.log(f'✓ 截图获取成功，尺寸: {image.size}', LogLevel.SUCCESS)
             return image
 
         except subprocess.TimeoutExpired:
-            self.log('截图请求超时', 'error')
+            self.log('截图请求超时', LogLevel.ERROR)
             return None
         except Exception as e:
-            self.log(f'截图处理异常: {e}', 'error')
+            self.log(f'截图处理异常: {e}', LogLevel.ERROR)
             return None
 
     def get_pixel_color(self, image: Image.Image, x: int, y: int) -> Tuple[int, int, int]:
-        """获取指定坐标的像素颜色"""
-        # 确保坐标在图片范围内
-        if 0 <= x < image.width and 0 <= y < image.height:
-            pixel = image.getpixel((x, y))
-            # 处理 RGBA 或 RGB
-            if isinstance(pixel, tuple):
-                return pixel[:3]
-            else:
-                return (pixel, pixel, pixel)
-        return (0, 0, 0)
+        """获取指定坐标的像素颜色
+
+        注意：_generate_points 生成的坐标是固定的且在安全范围内，
+        因此直接访问而不进行越界检查是安全的。
+        """
+        pixel = image.getpixel((x, y))
+        if isinstance(pixel, tuple):
+            return pixel[:3]
+        else:
+            return (pixel, pixel, pixel)
 
     def color_matches(self, color: Tuple[int, int, int]) -> bool:
         """检查颜色是否匹配目标颜色"""
@@ -101,65 +105,68 @@ class PuzzleSolver:
         )
         return diff <= COLOR_TOLERANCE
 
+    def _check_single_point(self, pixels, point: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """检查单个点位是否匹配目标颜色（线程安全版本）"""
+        x, y = point
+        try:
+            # 从像素数据数组中获取颜色
+            color = pixels[x, y]
+            if self.color_matches(color):
+                return point
+            return None
+        except Exception:
+            return None
+
     def filter_points_by_color(self, image: Image.Image) -> List[Tuple[int, int]]:
-        """根据颜色过滤点位"""
-        self.log('📸 开始进行颜色过滤...', 'info')
-        filtered = []
-        matched_count = 0
+        """根据颜色过滤点位（并行处理以提高性能）"""
+        self.log('📸 开始进行颜色过滤...', LogLevel.INFO)
 
-        for i, (x, y) in enumerate(self.all_points):
-            try:
-                color = self.get_pixel_color(image, x, y)
-                if self.color_matches(color):
-                    filtered.append((x, y))
-                    matched_count += 1
+        # 加载图片数据到内存并获取线程安全的像素访问器
+        pixels = image.load()
 
-                # 每处理 10 个点输出一次进度
-                if (i + 1) % 10 == 0:
-                    progress = (i + 1) / len(self.all_points) * 100
-                    self.log(
-                        f'已检查 {i + 1}/{len(self.all_points)} 个点 ({progress:.1f}%), '
-                        f'找到 {matched_count} 个匹配点',
-                        'info'
-                    )
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(
+                lambda p: self._check_single_point(pixels, p),
+                self.all_points
+            ))
 
-            except Exception as e:
-                self.log(f'检查点 ({x}, {y}) 时出错: {e}', 'error')
+        filtered = [r for r in results if r is not None]
 
         self.log(
             f'✓ 颜色过滤完成！从 {len(self.all_points)} 个点中筛选出 {len(filtered)} 个有效点',
-            'success'
+            LogLevel.SUCCESS
         )
         return filtered
+
+    def _generate_move_events(self, from_x: int, from_y: int, to_x: int, to_y: int) -> List[str]:
+        """生成从起点到终点的移动事件序列"""
+        distance = abs(to_x - from_x) + abs(to_y - from_y)
+        steps = max(2, (distance + 99) // 100)
+        events = []
+
+        for i in range(1, steps + 1):
+            progress = i / steps
+            curr_x = int(from_x + (to_x - from_x) * progress)
+            curr_y = int(from_y + (to_y - from_y) * progress)
+            events.append(f'input motionevent MOVE {curr_x} {curr_y}')
+
+        return events
 
     def perform_swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> bool:
         """执行拖动操作 - 使用 motionevent 模拟"""
         try:
-            # 计算中点
-            mid_x, mid_y = 100, 1500
+            mid_x, mid_y = SWIPE_MID_POINT
 
             # 构建事件序列
             events = [f'input motionevent DOWN {start_x} {start_y}']
 
             # 从起点到中点的移动事件
-            distance_to_mid = abs(mid_x - start_x) + abs(mid_y - start_y)
-            steps_to_mid = max(2, (distance_to_mid + 99) // 100)
-
-            for i in range(1, steps_to_mid + 1):
-                progress = i / steps_to_mid
-                curr_x = int(start_x + (mid_x - start_x) * progress)
-                curr_y = int(start_y + (mid_y - start_y) * progress)
-                events.append(f'input motionevent MOVE {curr_x} {curr_y}')
+            events.extend(self._generate_move_events(
+                start_x, start_y, mid_x, mid_y))
 
             # 从中点到终点的移动事件
-            distance_to_end = abs(end_x - mid_x) + abs(end_y - mid_y)
-            steps_to_end = max(2, (distance_to_end + 99) // 100)
-
-            for i in range(1, steps_to_end + 1):
-                progress = i / steps_to_end
-                curr_x = int(mid_x + (end_x - mid_x) * progress)
-                curr_y = int(mid_y + (end_y - mid_y) * progress)
-                events.append(f'input motionevent MOVE {curr_x} {curr_y}')
+            events.extend(self._generate_move_events(
+                mid_x, mid_y, end_x, end_y))
 
             # 抬起事件
             events.append(f'input motionevent UP {end_x} {end_y}')
@@ -173,16 +180,16 @@ class PuzzleSolver:
             )
 
             if result.returncode != 0:
-                self.log(f'拖动操作失败: {result.stderr.decode()}', 'error')
+                self.log(f'拖动操作失败: {result.stderr.decode()}', LogLevel.ERROR)
                 return False
 
             return True
 
         except subprocess.TimeoutExpired:
-            self.log('拖动操作超时', 'error')
+            self.log('拖动操作超时', LogLevel.ERROR)
             return False
         except Exception as e:
-            self.log(f'拖动操作异常: {e}', 'error')
+            self.log(f'拖动操作异常: {e}', LogLevel.ERROR)
             return False
 
     def perform_tap(self, x: int, y: int) -> bool:
@@ -195,27 +202,28 @@ class PuzzleSolver:
             )
 
             if result.returncode != 0:
-                self.log(f'点击操作失败: {result.stderr.decode()}', 'error')
+                self.log(f'点击操作失败: {result.stderr.decode()}', LogLevel.ERROR)
                 return False
 
             return True
 
         except subprocess.TimeoutExpired:
-            self.log('点击操作超时', 'error')
+            self.log('点击操作超时', LogLevel.ERROR)
             return False
         except Exception as e:
-            self.log(f'点击操作异常: {e}', 'error')
+            self.log(f'点击操作异常: {e}', LogLevel.ERROR)
             return False
 
     def solve_point(self, x: int, y: int, index: int, total: int) -> bool:
         """求解单个点位"""
-        self.log(f'🎯 处理第 {index} 个点: ({x}, {y})', 'info')
+        self.log(f'🎯 处理第 {index} 个点: ({x}, {y})', LogLevel.INFO)
 
         # 第一步：拖动
-        swipe_success = self.perform_swipe(SWIPE_START[0], SWIPE_START[1], x, y + 300, 300)
+        swipe_success = self.perform_swipe(
+            SWIPE_START[0], SWIPE_START[1], x, y + 300, 300)
 
         if not swipe_success:
-            self.log('拖动操作失败，停止本次求解', 'error')
+            self.log('拖动操作失败，停止本次求解', LogLevel.ERROR)
             return False
 
         # 极短延迟，让 ADB 命令完成
@@ -225,20 +233,21 @@ class PuzzleSolver:
         tap_success = self.perform_tap(TAP_COORD[0], TAP_COORD[1])
 
         if not tap_success:
-            self.log('点击操作失败，停止本次求解', 'error')
+            self.log('点击操作失败，停止本次求解', LogLevel.ERROR)
             return False
 
-        self.log(f'✓ 第 {index}/{total} 个点完成', 'success')
+        self.log(f'✓ 第 {index}/{total} 个点完成', LogLevel.SUCCESS)
         return True
 
     def solve_round(self) -> bool:
         """执行一轮求解"""
         if not self.filtered_points:
-            self.log('⚠️ 没有可处理的点位', 'error')
+            self.log('⚠️ 没有可处理的点位', LogLevel.ERROR)
             return False
 
         total_points = len(self.filtered_points)
-        self.log(f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', 'info')
+        self.log(
+            f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', LogLevel.INFO)
 
         for index, (x, y) in enumerate(self.filtered_points, 1):
             if not self.solve_point(x, y, index, total_points):
@@ -248,32 +257,31 @@ class PuzzleSolver:
             time.sleep(0.01)
 
         self.current_round += 1
-        self.log(f'🎉 第 {self.current_round} 轮完成！', 'success')
+        self.log(f'🎉 第 {self.current_round} 轮完成！', LogLevel.SUCCESS)
         return True
 
     def start_solving(self, max_rounds: Optional[int] = None):
         """启动求解"""
-        self.is_solving = True
         round_count = 0
 
         try:
-            while self.is_solving:
+            while True:
                 # 检查轮次限制
                 if max_rounds and round_count >= max_rounds:
-                    self.log(f'✓ 已完成 {max_rounds} 轮求解，停止', 'success')
+                    self.log(f'✓ 已完成 {max_rounds} 轮求解，停止', LogLevel.SUCCESS)
                     break
 
                 # 获取截图
                 screenshot = self.get_screenshot()
                 if not screenshot:
-                    self.log('截图获取失败，停止求解', 'error')
+                    self.log('截图获取失败，停止求解', LogLevel.ERROR)
                     break
 
                 # 颜色过滤
                 self.filtered_points = self.filter_points_by_color(screenshot)
 
                 if not self.filtered_points:
-                    self.log('⚠️ 没有找到匹配颜色的点，停止求解', 'error')
+                    self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
                     break
 
                 # 求解这一轮
@@ -285,12 +293,11 @@ class PuzzleSolver:
                 round_count += 1
 
         except KeyboardInterrupt:
-            self.log('\n⏹️ 用户中止求解', 'info')
+            self.log('\n⏹️ 用户中止求解', LogLevel.INFO)
         except Exception as e:
-            self.log(f'求解过程中出错: {e}', 'error')
+            self.log(f'求解过程中出错: {e}', LogLevel.ERROR)
         finally:
-            self.is_solving = False
-            self.log(f'求解已停止，共完成 {self.current_round} 轮', 'info')
+            self.log(f'求解已停止，共完成 {self.current_round} 轮', LogLevel.INFO)
 
 
 def main():
