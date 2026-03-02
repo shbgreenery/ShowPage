@@ -5,10 +5,38 @@ ADB 代理服务器
 """
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import subprocess
 import json
 import sys
 import base64
+
+
+# 常量定义
+class Status:
+    OK = 'ok'
+    ERROR = 'error'
+
+
+class HttpCode:
+    OK = 200
+    NOT_FOUND = 404
+    SERVER_ERROR = 500
+
+
+class Config:
+    DEFAULT_PORT = 8085
+    DEVICE_TIMEOUT = 5
+    DEFAULT_TIMEOUT = 10
+    SWIPE_MID_X = 100
+    SWIPE_MID_Y = 1660
+    STEP_PIXEL_SIZE = 100
+    MIN_STEPS = 2
+
+
+class ADBCommand:
+    DEVICES = ['adb', 'devices']
+    SCREENCAP = ['adb', 'exec-out', 'screencap', '-p']
 
 
 class ADBProxyHandler(BaseHTTPRequestHandler):
@@ -31,10 +59,10 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             # 获取连接的设备列表
             try:
                 result = subprocess.run(
-                    ['adb', 'devices'],
+                    ADBCommand.DEVICES,
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=Config.DEVICE_TIMEOUT
                 )
                 devices = []
                 for line in result.stdout.strip().split('\n')[1:]:
@@ -46,22 +74,22 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                                 'status': parts[1]
                             })
                 self.send_json_response({
-                    'status': 'ok',
+                    'status': Status.OK,
                     'devices': devices
                 })
             except Exception as e:
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': str(e)
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
         elif self.path == '/screenshot':
             # 获取设备截图
             try:
                 self.log_message("开始获取设备截图")
                 result = subprocess.run(
-                    ['adb', 'exec-out', 'screencap', '-p'],
+                    ADBCommand.SCREENCAP,
                     capture_output=True,
-                    timeout=10
+                    timeout=Config.DEFAULT_TIMEOUT
                 )
 
                 if result.returncode == 0 and result.stdout:
@@ -69,7 +97,7 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     base64_data = base64.b64encode(
                         result.stdout).decode('utf-8')
                     self.send_json_response({
-                        'status': 'ok',
+                        'status': Status.OK,
                         'data': base64_data,
                         'format': 'png',
                         'size': len(result.stdout)
@@ -79,23 +107,23 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     self.log_message(
                         f"截图失败，返回码: {result.returncode}, 错误: {result.stderr.decode()}")
                     self.send_json_response({
-                        'status': 'error',
+                        'status': Status.ERROR,
                         'message': '截图失败，请确保设备已连接且锁屏已解除'
-                    }, 500)
+                    }, HttpCode.SERVER_ERROR)
             except subprocess.TimeoutExpired:
                 self.log_message("截图请求超时")
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': '截图请求超时'
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
             except Exception as e:
                 self.log_message(f"截图异常: {str(e)}")
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': f'截图异常: {str(e)}'
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
         else:
-            self.send_response(404)
+            self.send_response(HttpCode.NOT_FOUND)
             self.end_headers()
 
     def do_POST(self):
@@ -110,48 +138,47 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 taps = data.get('taps', [])
                 if not taps:
                     self.send_json_response({
-                        'status': 'ok',
+                        'status': Status.OK,
                         'total': 0,
                         'success': 0,
                         'failed': 0
                     })
                     return
 
-                success_count = 0
-                for i, tap in enumerate(taps):
-                    x = tap.get('x', 0)
-                    y = tap.get('y', 0)
-                    command = f'input tap {x} {y}'
-                    self.log_message(f'执行点击 [{i+1}/{len(taps)}]：{command}')
+                # 批量执行点击：将所有命令合并为一个 shell 脚本
+                tap_commands = [
+                    f"input tap {tap.get('x', 0)} {tap.get('y', 0)}" for tap in taps]
+                shell_script = '\n'.join(tap_commands)
 
-                    # 执行 ADB 命令
-                    result = subprocess.run(
-                        ['adb', 'shell', command],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
+                self.log_message(f'批量执行 {len(taps)} 个点击命令')
 
-                    if result.returncode == 0:
-                        success_count += 1
+                result = subprocess.run(
+                    ['adb', 'shell', shell_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=Config.DEFAULT_TIMEOUT
+                )
+
+                success_count = len(taps) if result.returncode == 0 else 0
+                failed_count = len(taps) - success_count
 
                 self.send_json_response({
-                    'status': 'ok',
+                    'status': Status.OK,
                     'total': len(taps),
                     'success': success_count,
-                    'failed': len(taps) - success_count
+                    'failed': failed_count
                 })
 
             except subprocess.TimeoutExpired:
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': '命令执行超时'
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
             except Exception as e:
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': str(e)
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
         elif self.path == '/swipe':
             try:
                 # 读取请求体
@@ -165,62 +192,35 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 end_y = data.get('endY', 0)
 
                 # 使用 motionevent 模拟手指拖动
-                mid_x = 100
-                mid_y = 1500
+                mid_x = Config.SWIPE_MID_X
+                mid_y = Config.SWIPE_MID_Y
 
                 self.log_message(
                     f'执行手指拖动：({start_x}, {start_y}) → ({mid_x}, {mid_y}) → ({end_x}, {end_y})')
 
-                # 构建简化的 motionevent 事件序列
-                # DOWN 事件 - 手指按下
+                # 构建事件序列
                 down_event = f'input motionevent DOWN {start_x} {start_y}'
-
-                # MOVE 事件 - 根据距离计算步数，每步约100像素
-                move_events = []
-
-                # 计算起点到中点的步数
-                distance_to_mid = abs(mid_x - start_x) + abs(mid_y - start_y)
-                steps_to_mid = max(2, (distance_to_mid + 99) // 100)  # 至少2步
-
-                for i in range(1, steps_to_mid + 1):
-                    progress = i / steps_to_mid
-                    curr_x = int(start_x + (mid_x - start_x) * progress)
-                    curr_y = int(start_y + (mid_y - start_y) * progress)
-                    move_events.append(
-                        f'input motionevent MOVE {curr_x} {curr_y}')
-
-                # 计算中点到终点的步数
-                distance_to_end = abs(end_x - mid_x) + abs(end_y - mid_y)
-                steps_to_end = max(2, (distance_to_end + 99) // 100)  # 至少2步
-
-                for i in range(1, steps_to_end + 1):
-                    progress = i / steps_to_end
-                    curr_x = int(mid_x + (end_x - mid_x) * progress)
-                    curr_y = int(mid_y + (end_y - mid_y) * progress)
-                    move_events.append(
-                        f'input motionevent MOVE {curr_x} {curr_y}')
-
-                # UP 事件 - 手指抬起
+                move_events = self._generate_move_events(
+                    start_x, start_y, mid_x, mid_y)
+                move_events.extend(self._generate_move_events(
+                    mid_x, mid_y, end_x, end_y))
                 up_event = f'input motionevent UP {end_x} {end_y}'
 
-                # 构建完整的事件序列
                 all_events = [down_event] + move_events + [up_event]
-
-                # 直接执行事件序列，不添加延迟
                 shell_script = '\n'.join(all_events)
 
-                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件 (起点→中点: {steps_to_mid}步, 中点→终点: {steps_to_end}步)')
+                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')
 
                 result = subprocess.run(
                     ['adb', 'shell', shell_script],
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=Config.DEFAULT_TIMEOUT
                 )
 
                 if result.returncode == 0:
                     self.send_json_response({
-                        'status': 'ok',
+                        'status': Status.OK,
                         'message': '手指拖动执行成功',
                         'path': f'({start_x},{start_y}) → ({mid_x},{mid_y}) → ({end_x},{end_y})'
                     })
@@ -228,23 +228,38 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     self.log_message(
                         f"motionevent 拖动失败，返回码: {result.returncode}, 错误: {result.stderr}")
                     self.send_json_response({
-                        'status': 'error',
+                        'status': Status.ERROR,
                         'message': '拖动执行失败'
-                    }, 500)
+                    }, HttpCode.SERVER_ERROR)
 
             except subprocess.TimeoutExpired:
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': '拖动命令执行超时'
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
             except Exception as e:
                 self.send_json_response({
-                    'status': 'error',
+                    'status': Status.ERROR,
                     'message': str(e)
-                }, 500)
+                }, HttpCode.SERVER_ERROR)
         else:
-            self.send_response(404)
+            self.send_response(HttpCode.NOT_FOUND)
             self.end_headers()
+
+    def _generate_move_events(self, from_x: int, from_y: int, to_x: int, to_y: int) -> list[str]:
+        """生成从起点到终点的移动事件序列"""
+        distance = abs(to_x - from_x) + abs(to_y - from_y)
+        steps = max(Config.MIN_STEPS, (distance +
+                    Config.STEP_PIXEL_SIZE - 1) // Config.STEP_PIXEL_SIZE)
+        events = []
+
+        for i in range(1, steps + 1):
+            progress = i / steps
+            curr_x = int(from_x + (to_x - from_x) * progress)
+            curr_y = int(from_y + (to_y - from_y) * progress)
+            events.append(f'input motionevent MOVE {curr_x} {curr_y}')
+
+        return events
 
     def send_json_response(self, data, status_code=200):
         """发送 JSON 响应"""
@@ -260,7 +275,7 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    port = 8085
+    port = Config.DEFAULT_PORT
     server_address = ('', port)
 
     print(f"🚀 ADB 代理服务器启动在 http://localhost:{port}")
@@ -274,7 +289,8 @@ def main():
     print(f"💡 按 Ctrl+C 停止服务器")
 
     try:
-        httpd = HTTPServer(server_address, ADBProxyHandler)
+        # 使用 ThreadingHTTPServer 支持并发请求
+        httpd = ThreadingHTTPServer(server_address, ADBProxyHandler)
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n👋 服务器已停止")
