@@ -199,14 +199,15 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     f'执行手指拖动：({start_x}, {start_y}) → ({mid_x}, {mid_y}) → ({end_x}, {end_y})')
 
                 # 构建事件序列
-                down_event = f'input motionevent DOWN {start_x} {start_y}'
-                move_events = self._generate_move_events(
-                    start_x, start_y, mid_x, mid_y)
-                move_events.extend(self._generate_move_events(
-                    mid_x, mid_y, end_x, end_y))
-                up_event = f'input motionevent UP {end_x} {end_y}'
+                all_events = []
+                all_events.append(
+                    f'input motionevent DOWN {start_x} {start_y}')
+                all_events.append(
+                    f'input motionevent MOVE {mid_x} {mid_y}')
+                all_events.append(
+                    f'input motionevent MOVE {end_x} {end_y}')
+                all_events.append(f'input motionevent UP {end_x} {end_y}')
 
-                all_events = [down_event] + move_events + [up_event]
                 shell_script = '\n'.join(all_events)
 
                 self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')

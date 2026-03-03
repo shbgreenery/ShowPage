@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Tuple, Optional
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
 
 # 目标颜色（RGB），允许误差 10
 TARGET_COLOR = (36, 138, 114)
@@ -195,10 +196,8 @@ class PuzzleSolver:
             self.log(f'点击操作异常: {e}', LogLevel.ERROR)
             return False
 
-    def solve_point(self, x: int, y: int, index: int, total: int) -> bool:
+    def solve_point(self, x: int, y: int) -> bool:
         """求解单个点位"""
-        self.log(f'🎯 处理第 {index} 个点: ({x}, {y})', LogLevel.INFO)
-
         # 第一步：拖动
         swipe_success = self.perform_swipe(
             SWIPE_START[0], SWIPE_START[1], x, y + 300)
@@ -217,7 +216,6 @@ class PuzzleSolver:
             self.log('点击操作失败，停止本次求解', LogLevel.ERROR)
             return False
 
-        self.log(f'✓ 第 {index}/{total} 个点完成', LogLevel.SUCCESS)
         return True
 
     def solve_round(self) -> bool:
@@ -230,15 +228,19 @@ class PuzzleSolver:
         self.log(
             f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', LogLevel.INFO)
 
-        for index, (x, y) in enumerate(self.filtered_points, 1):
-            if not self.solve_point(x, y, index, total_points):
-                return False
+        # 使用进度条显示处理进度
+        with tqdm(self.filtered_points, total=total_points,
+                  desc=f'  轮次 {self.current_round + 1}',
+                  unit='点', leave=True) as pbar:
+            for x, y in pbar:
+                if not self.solve_point(x, y):
+                    return False
 
-            # 短延迟避免过快
-            time.sleep(0.01)
+                # 短延迟避免过快
+                time.sleep(0.01)
 
         self.current_round += 1
-        self.log(f'🎉 第 {self.current_round} 轮完成！', LogLevel.SUCCESS)
+        print(f'✓ 第 {self.current_round} 轮完成！', flush=True)
         return True
 
     def start_solving(self, max_rounds: Optional[int] = None):
