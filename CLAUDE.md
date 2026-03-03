@@ -34,7 +34,7 @@ This is a collection of automated game solving tools for Android mobile games. T
 ```bash
 source venv/bin/activate
 ```
-Dependencies: Pillow 12.1.0, requests 2.32.5
+Dependencies: Pillow 12.1.0, requests 2.32.5, tqdm
 
 ### Start ADB Proxy Server
 ```bash
