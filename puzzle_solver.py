@@ -138,35 +138,16 @@ class PuzzleSolver:
         )
         return filtered
 
-    def _generate_move_events(self, from_x: int, from_y: int, to_x: int, to_y: int) -> List[str]:
-        """生成从起点到终点的移动事件序列"""
-        distance = abs(to_x - from_x) + abs(to_y - from_y)
-        steps = max(2, (distance + 99) // 100)
-        events = []
-
-        for i in range(1, steps + 1):
-            progress = i / steps
-            curr_x = int(from_x + (to_x - from_x) * progress)
-            curr_y = int(from_y + (to_y - from_y) * progress)
-            events.append(f'input motionevent MOVE {curr_x} {curr_y}')
-
-        return events
-
-    def perform_swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 300) -> bool:
+    def perform_swipe(self, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
         """执行拖动操作 - 使用 motionevent 模拟"""
         try:
-            mid_x, mid_y = SWIPE_MID_POINT
-
             # 构建事件序列
             events = [f'input motionevent DOWN {start_x} {start_y}']
 
-            # 从起点到中点的移动事件
-            events.extend(self._generate_move_events(
-                start_x, start_y, mid_x, mid_y))
-
-            # 从中点到终点的移动事件
-            events.extend(self._generate_move_events(
-                mid_x, mid_y, end_x, end_y))
+            # 起点 → 中点 → 终点（经过中间点）
+            mid_x, mid_y = SWIPE_MID_POINT
+            events.append(f'input motionevent MOVE {mid_x} {mid_y}')
+            events.append(f'input motionevent MOVE {end_x} {end_y}')
 
             # 抬起事件
             events.append(f'input motionevent UP {end_x} {end_y}')
@@ -220,7 +201,7 @@ class PuzzleSolver:
 
         # 第一步：拖动
         swipe_success = self.perform_swipe(
-            SWIPE_START[0], SWIPE_START[1], x, y + 300, 300)
+            SWIPE_START[0], SWIPE_START[1], x, y + 300)
 
         if not swipe_success:
             self.log('拖动操作失败，停止本次求解', LogLevel.ERROR)
