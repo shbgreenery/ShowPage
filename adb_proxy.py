@@ -10,6 +10,9 @@ import subprocess
 import json
 import sys
 import base64
+import os
+import io
+import requests
 
 
 # 常量定义
@@ -27,11 +30,14 @@ class HttpCode:
 class Config:
     DEFAULT_PORT = 8085
     DEVICE_TIMEOUT = 5
-    DEFAULT_TIMEOUT = 10
+    DEFAULT_TIMEOUT = 30
     SWIPE_MID_X = 100
     SWIPE_MID_Y = 1660
     STEP_PIXEL_SIZE = 100
     MIN_STEPS = 2
+    # AI API 配置 (本地代理)
+    ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+    ANTHROPIC_API_URL = 'http://127.0.0.1:3456/v1/messages'
 
 
 class ADBCommand:
@@ -122,6 +128,26 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': Status.ERROR,
                     'message': f'截图异常: {str(e)}'
                 }, HttpCode.SERVER_ERROR)
+        elif self.path == '/analyze-nonogram':
+            # 分析数织游戏约束
+            try:
+                self.log_message("开始分析数织游戏约束")
+                # 1. 截取屏幕
+                image_base64 = self._capture_screenshot()
+                # 2. 用 AI 分析约束
+                constraints = self._analyze_nonogram_constraints(image_base64)
+                self.send_json_response({
+                    'status': Status.OK,
+                    'row': constraints.get('row', ''),
+                    'col': constraints.get('col', '')
+                })
+                self.log_message("数织游戏约束分析成功")
+            except Exception as e:
+                self.log_message(f"分析失败: {str(e)}")
+                self.send_json_response({
+                    'status': Status.ERROR,
+                    'message': str(e)
+                }, HttpCode.SERVER_ERROR)
         else:
             self.send_response(HttpCode.NOT_FOUND)
             self.end_headers()
@@ -199,15 +225,14 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     f'执行手指拖动：({start_x}, {start_y}) → ({mid_x}, {mid_y}) → ({end_x}, {end_y})')
 
                 # 构建事件序列
-                all_events = []
-                all_events.append(
-                    f'input motionevent DOWN {start_x} {start_y}')
-                all_events.append(
-                    f'input motionevent MOVE {mid_x} {mid_y}')
-                all_events.append(
-                    f'input motionevent MOVE {end_x} {end_y}')
-                all_events.append(f'input motionevent UP {end_x} {end_y}')
+                down_event = f'input motionevent DOWN {start_x} {start_y}'
+                move_events = self._generate_move_events(
+                    start_x, start_y, mid_x, mid_y)
+                move_events.extend(self._generate_move_events(
+                    mid_x, mid_y, end_x, end_y))
+                up_event = f'input motionevent UP {end_x} {end_y}'
 
+                all_events = [down_event] + move_events + [up_event]
                 shell_script = '\n'.join(all_events)
 
                 self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')
@@ -262,6 +287,89 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
         return events
 
+    def _capture_screenshot(self) -> str:
+        """截取手机屏幕，返回 base64 编码的图片数据"""
+        result = subprocess.run(
+            ADBCommand.SCREENCAP,
+            capture_output=True,
+            timeout=Config.DEFAULT_TIMEOUT
+        )
+        if result.returncode == 0 and result.stdout:
+            return base64.b64encode(result.stdout).decode('utf-8')
+        raise Exception('截图失败')
+
+    def _analyze_nonogram_constraints(self, image_base64: str) -> dict:
+        """使用 AI 视觉模型分析数织游戏的行约束和列约束"""
+
+        # 构建请求
+        headers = {
+            'x-api-key': Config.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        }
+
+        prompt = """分析这张数织(Nonogram)游戏的截图，识别并返回所有行约束和列约束。
+
+请严格按照以下 JSON 格式返回，不要添加任何其他内容：
+{
+  "row": "每行一个约束，数字用空格分隔，例如: '1 2\\n3 4\\n5'",
+  "col": "每列一个约束，数字用空格分隔"
+}
+
+注意：
+- 如果某行/列没有数字（全是空白），字符串 '-1'
+- 约束数字之间用单个空格分隔
+- 行与行之间用换行符 \\n 分隔"""
+
+        payload = {
+            'model': 'claude-sonnet-4-20250514',
+            'max_tokens': 4096,
+            'messages': [
+                {
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'image',
+                            'source': {
+                                'type': 'base64',
+                                'media_type': 'image/png',
+                                'data': image_base64
+                            }
+                        },
+                        {
+                            'type': 'text',
+                            'text': prompt
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = requests.post(
+            Config.ANTHROPIC_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            raise Exception(f'AI API 调用失败: {response.text}')
+
+        result = response.json()
+        content = result['content'][0]['text']
+
+        # 尝试解析 JSON
+        try:
+            # 尝试提取 JSON 块
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                return json.loads(json_match.group())
+        except json.JSONDecodeError as e:
+            raise Exception(f'解析 AI 返回结果失败: {e}, 原始内容: {content}')
+
+        raise Exception(f'无法解析 AI 返回内容: {content}')
+
     def send_json_response(self, data, status_code=200):
         """发送 JSON 响应"""
         self.send_response(status_code)
@@ -282,11 +390,12 @@ def main():
     print(f"🚀 ADB 代理服务器启动在 http://localhost:{port}")
     print(f"📱 请确保手机已连接并开启 USB 调试")
     print(f"📡 支持的 API:")
-    print(f"   GET  /health    - 健康检查")
-    print(f"   GET  /devices   - 获取设备列表")
-    print(f"   GET  /screenshot - 获取设备截图")
-    print(f"   POST /tap       - 执行点击操作")
-    print(f"   POST /swipe     - 执行拖动操作")
+    print(f"   GET  /health            - 健康检查")
+    print(f"   GET  /devices           - 获取设备列表")
+    print(f"   GET  /screenshot        - 获取设备截图")
+    print(f"   GET  /analyze-nonogram  - 分析数织游戏约束(需要 ANTHROPIC_API_KEY)")
+    print(f"   POST /tap               - 执行点击操作")
+    print(f"   POST /swipe             - 执行拖动操作")
     print(f"💡 按 Ctrl+C 停止服务器")
 
     try:
