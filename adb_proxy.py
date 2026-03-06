@@ -12,6 +12,7 @@ import sys
 import base64
 import os
 import io
+import re
 import requests
 
 
@@ -205,87 +206,9 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': Status.ERROR,
                     'message': str(e)
                 }, HttpCode.SERVER_ERROR)
-        elif self.path == '/swipe':
-            try:
-                # 读取请求体
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
-                data = json.loads(post_data.decode('utf-8'))
-
-                start_x = data.get('startX', 0)
-                start_y = data.get('startY', 0)
-                end_x = data.get('endX', 0)
-                end_y = data.get('endY', 0)
-
-                # 使用 motionevent 模拟手指拖动
-                mid_x = Config.SWIPE_MID_X
-                mid_y = Config.SWIPE_MID_Y
-
-                self.log_message(
-                    f'执行手指拖动：({start_x}, {start_y}) → ({mid_x}, {mid_y}) → ({end_x}, {end_y})')
-
-                # 构建事件序列
-                down_event = f'input motionevent DOWN {start_x} {start_y}'
-                move_events = self._generate_move_events(
-                    start_x, start_y, mid_x, mid_y)
-                move_events.extend(self._generate_move_events(
-                    mid_x, mid_y, end_x, end_y))
-                up_event = f'input motionevent UP {end_x} {end_y}'
-
-                all_events = [down_event] + move_events + [up_event]
-                shell_script = '\n'.join(all_events)
-
-                self.log_message(f'执行 motionevent 手指拖动：{len(all_events)} 个事件')
-
-                result = subprocess.run(
-                    ['adb', 'shell', shell_script],
-                    capture_output=True,
-                    text=True,
-                    timeout=Config.DEFAULT_TIMEOUT
-                )
-
-                if result.returncode == 0:
-                    self.send_json_response({
-                        'status': Status.OK,
-                        'message': '手指拖动执行成功',
-                        'path': f'({start_x},{start_y}) → ({mid_x},{mid_y}) → ({end_x},{end_y})'
-                    })
-                else:
-                    self.log_message(
-                        f"motionevent 拖动失败，返回码: {result.returncode}, 错误: {result.stderr}")
-                    self.send_json_response({
-                        'status': Status.ERROR,
-                        'message': '拖动执行失败'
-                    }, HttpCode.SERVER_ERROR)
-
-            except subprocess.TimeoutExpired:
-                self.send_json_response({
-                    'status': Status.ERROR,
-                    'message': '拖动命令执行超时'
-                }, HttpCode.SERVER_ERROR)
-            except Exception as e:
-                self.send_json_response({
-                    'status': Status.ERROR,
-                    'message': str(e)
-                }, HttpCode.SERVER_ERROR)
         else:
             self.send_response(HttpCode.NOT_FOUND)
             self.end_headers()
-
-    def _generate_move_events(self, from_x: int, from_y: int, to_x: int, to_y: int) -> list[str]:
-        """生成从起点到终点的移动事件序列"""
-        distance = abs(to_x - from_x) + abs(to_y - from_y)
-        steps = max(Config.MIN_STEPS, (distance +
-                    Config.STEP_PIXEL_SIZE - 1) // Config.STEP_PIXEL_SIZE)
-        events = []
-
-        for i in range(1, steps + 1):
-            progress = i / steps
-            curr_x = int(from_x + (to_x - from_x) * progress)
-            curr_y = int(from_y + (to_y - from_y) * progress)
-            events.append(f'input motionevent MOVE {curr_x} {curr_y}')
-
-        return events
 
     def _capture_screenshot(self) -> str:
         """截取手机屏幕，返回 base64 编码的图片数据"""
@@ -358,17 +281,66 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         result = response.json()
         content = result['content'][0]['text']
 
-        # 尝试解析 JSON
-        try:
-            # 尝试提取 JSON 块
-            import re
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                return json.loads(json_match.group())
-        except json.JSONDecodeError as e:
-            raise Exception(f'解析 AI 返回结果失败: {e}, 原始内容: {content}')
+        # 尝试解析 JSON，提取 JSON 块
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if not json_match:
+            raise Exception(f'无法提取 JSON: {content}')
 
-        raise Exception(f'无法解析 AI 返回内容: {content}')
+        try:
+            data = json.loads(json_match.group())
+        except json.JSONDecodeError:
+            # JSON 解析失败，尝试从文本中手动提取
+            data = self._parse_constraints_from_text(content)
+
+        # 验证并修复约束数据
+        data = self._validate_constraints(data)
+
+        return data
+
+    def _parse_constraints_from_text(self, text: str) -> dict:
+        """从文本中手动提取约束"""
+        row_match = re.search(r'"row"\s*:\s*"([^"]*)"', text)
+        col_match = re.search(r'"col"\s*:\s*"([^"]*)"', text)
+
+        return {
+            'row': row_match.group(1) if row_match else '',
+            'col': col_match.group(1) if col_match else ''
+        }
+
+    def _validate_constraints(self, data: dict) -> dict:
+        """验证约束数据，无效的返回 -1"""
+        # 验证 row
+        row_str = data.get('row', '')
+        if not row_str or row_str.strip() == '':
+            data['row'] = '-1'
+        else:
+            # 检查是否包含有效数字
+            rows = row_str.strip().split('\n')
+            valid_rows = []
+            for r in rows:
+                r = r.strip()
+                if r == '' or re.match(r'^-?\d+(\s+\d+)*$', r):
+                    valid_rows.append(r if r else '-1')
+                else:
+                    valid_rows.append('-1')
+            data['row'] = '\n'.join(valid_rows)
+
+        # 验证 col
+        col_str = data.get('col', '')
+        if not col_str or col_str.strip() == '':
+            data['col'] = '-1'
+        else:
+            cols = col_str.strip().split('\n')
+            valid_cols = []
+            for c in cols:
+                c = c.strip()
+                if c == '' or re.match(r'^-?\d+(\s+\d+)*$', c):
+                    valid_cols.append(c if c else '-1')
+                else:
+                    valid_cols.append('-1')
+            data['col'] = '\n'.join(valid_cols)
+
+        return data
 
     def send_json_response(self, data, status_code=200):
         """发送 JSON 响应"""
@@ -393,7 +365,7 @@ def main():
     print(f"   GET  /health            - 健康检查")
     print(f"   GET  /devices           - 获取设备列表")
     print(f"   GET  /screenshot        - 获取设备截图")
-    print(f"   GET  /analyze-nonogram  - 分析数织游戏约束(需要 ANTHROPIC_API_KEY)")
+    print(f"   GET  /analyze-nonogram  - 分析数织游戏约束")
     print(f"   POST /tap               - 执行点击操作")
     print(f"   POST /swipe             - 执行拖动操作")
     print(f"💡 按 Ctrl+C 停止服务器")
