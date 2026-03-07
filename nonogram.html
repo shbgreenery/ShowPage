@@ -716,6 +716,9 @@
                     <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
                 </div>
                 <div class="control-row">
+                    <button onclick="analyzeFromScreenshot()">AI识别约束</button>
+                </div>
+                <div class="control-row">
                     <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个填充</button>
                 </div>
             </div>
@@ -1063,6 +1066,60 @@
                 batchBtn.textContent = '点击空格';
                 statusEl.textContent = `✗ 批量点击失败: ${error.message}`;
                 statusEl.className = 'device-disconnected';
+            }
+        }
+
+        // AI 分析数织约束
+        async function analyzeFromScreenshot() {
+            const statusEl = document.getElementById('status');
+            const analyzeBtn = document.querySelector('button[onclick="analyzeFromScreenshot()"]');
+
+            statusEl.textContent = '正在分析截图...';
+            statusEl.className = 'device-connecting';
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = '分析中...';
+
+            try {
+                const response = await fetch(`${proxyUrl}/analyze-nonogram`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || '分析失败');
+                }
+
+                const data = await response.json();
+
+                // 处理约束数据：将转义的 \\n 转换为真正的换行符
+                const processConstraints = (str) => {
+                    if (!str) return '';
+                    // 替换常见的换行符转义形式
+                    return str
+                        .replace(/\\n/g, '\n')      // 处理 \n
+                        .replace(/\\\\n/g, '\n')    // 处理 \\n
+                        .replace(/\r\n/g, '\n')     // 统一换行符
+                        .replace(/\r/g, '\n');       // 处理旧式 Mac 换行符
+                };
+
+                // 填充到对应的 textarea
+                document.getElementById('row-constraints').value = processConstraints(data.row || '');
+                document.getElementById('col-constraints').value = processConstraints(data.col || '');
+
+                statusEl.textContent = '✓ 约束识别成功，请点击"求解"';
+                statusEl.className = 'device-connected';
+
+            } catch (error) {
+                console.error('AI 分析失败:', error);
+                statusEl.textContent = `✗ 分析失败: ${error.message}`;
+                statusEl.className = 'device-disconnected';
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'AI识别约束';
             }
         }
 
@@ -1589,7 +1646,7 @@
                 modalOverlay._handleKeyDown = handleKeyDown;
 
                 // 点击遮罩关闭
-                modalOverlay.addEventListener('click', function(e) {
+                modalOverlay.addEventListener('click', function (e) {
                     if (e.target === modalOverlay) {
                         confirmCustomConfirm(false);
                     }
