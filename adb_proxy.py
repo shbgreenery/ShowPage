@@ -14,6 +14,12 @@ import os
 import io
 import re
 import requests
+import tempfile
+from datetime import datetime
+
+# 添加当前目录到 path 以便导入模块
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import nonogram_recognizer
 
 
 # 常量定义
@@ -222,125 +228,35 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         raise Exception('截图失败')
 
     def _analyze_nonogram_constraints(self, image_base64: str) -> dict:
-        """使用 AI 视觉模型分析数织游戏的行约束和列约束"""
+        """使用本地识别器分析数织游戏的行约束和列约束"""
 
-        # 构建请求
-        headers = {
-            'x-api-key': Config.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-        }
-
-        prompt = """分析这张数织(Nonogram)游戏的截图，识别并返回所有行约束和列约束。
-
-请严格按照以下 JSON 格式返回，不要添加任何其他内容：
-{
-  "row": "每行一个约束，数字用空格分隔，例如: '1 2\\n3 4\\n5'",
-  "col": "每列一个约束，数字用空格分隔"
-}
-
-注意：
-- 如果某行/列没有数字（全是空白），字符串 '-1'
-- 约束数字之间用单个空格分隔
-- 行与行之间用换行符 \\n 分隔"""
-
-        payload = {
-            'model': 'claude-sonnet-4-20250514',
-            'max_tokens': 4096,
-            'messages': [
-                {
-                    'role': 'user',
-                    'content': [
-                        {
-                            'type': 'image',
-                            'source': {
-                                'type': 'base64',
-                                'media_type': 'image/png',
-                                'data': image_base64
-                            }
-                        },
-                        {
-                            'type': 'text',
-                            'text': prompt
-                        }
-                    ]
-                }
-            ]
-        }
-
-        response = requests.post(
-            Config.ANTHROPIC_API_URL,
-            headers=headers,
-            json=payload,
-            timeout=60
-        )
-
-        if response.status_code != 200:
-            raise Exception(f'AI API 调用失败: {response.text}')
-
-        result = response.json()
-        content = result['content'][0]['text']
-
-        # 尝试解析 JSON，提取 JSON 块
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if not json_match:
-            raise Exception(f'无法提取 JSON: {content}')
+        # 1. 将 base64 图片保存到临时文件
+        image_data = base64.b64decode(image_base64)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            tmp_file.write(image_data)
+            temp_path = tmp_file.name
 
         try:
-            data = json.loads(json_match.group())
-        except json.JSONDecodeError:
-            # JSON 解析失败，尝试从文本中手动提取
-            data = self._parse_constraints_from_text(content)
+            # 2. 调用本地识别器
+            self.log_message("开始使用本地识别器分析数织约束")
+            result = nonogram_recognizer.recognize_from_image(temp_path)
 
-        # 验证并修复约束数据
-        data = self._validate_constraints(data)
+            # 3. 提取结果并格式化
+            data = {
+                'row': result.get('row', '').replace('\n', '\\n'),
+                'col': result.get('col', '').replace('\n', '\\n')
+            }
+            
+            self.log_message(f"本地识别成功: row={data['row'][:50]}..., col={data['col'][:50]}...")
+            return data
 
-        return data
-
-    def _parse_constraints_from_text(self, text: str) -> dict:
-        """从文本中手动提取约束"""
-        row_match = re.search(r'"row"\s*:\s*"([^"]*)"', text)
-        col_match = re.search(r'"col"\s*:\s*"([^"]*)"', text)
-
-        return {
-            'row': row_match.group(1) if row_match else '',
-            'col': col_match.group(1) if col_match else ''
-        }
-
-    def _validate_constraints(self, data: dict) -> dict:
-        """验证约束数据，无效的返回 -1"""
-        # 验证 row
-        row_str = data.get('row', '')
-        if not row_str or row_str.strip() == '':
-            data['row'] = '-1'
-        else:
-            # 检查是否包含有效数字
-            rows = row_str.strip().split('\n')
-            valid_rows = []
-            for r in rows:
-                r = r.strip()
-                if r == '' or re.match(r'^-?\d+(\s+\d+)*$', r):
-                    valid_rows.append(r if r else '-1')
-                else:
-                    valid_rows.append('-1')
-            data['row'] = '\n'.join(valid_rows)
-
-        # 验证 col
-        col_str = data.get('col', '')
-        if not col_str or col_str.strip() == '':
-            data['col'] = '-1'
-        else:
-            cols = col_str.strip().split('\n')
-            valid_cols = []
-            for c in cols:
-                c = c.strip()
-                if c == '' or re.match(r'^-?\d+(\s+\d+)*$', c):
-                    valid_cols.append(c if c else '-1')
-                else:
-                    valid_cols.append('-1')
-            data['col'] = '\n'.join(valid_cols)
-
-        return data
+        except Exception as e:
+            self.log_message(f"本地识别失败: {str(e)}")
+            raise Exception(f'本地识别失败: {str(e)}')
+        finally:
+            # 5. 清理临时文件
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
     def send_json_response(self, data, status_code=200):
         """发送 JSON 响应"""
@@ -352,7 +268,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """自定义日志格式"""
-        print(f"[ADB Proxy] {format % args}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] [ADB Proxy] {format % args}")
 
 
 def main():
