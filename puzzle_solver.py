@@ -126,9 +126,18 @@ class PuzzleSolver:
         except Exception:
             return None
 
-    def filter_points_by_color(self, image: Image.Image) -> List[Tuple[int, int]]:
-        """根据颜色过滤点位（并行处理以提高性能）"""
-        self.log('📸 开始进行颜色过滤...', LogLevel.INFO)
+    def filter_points_by_color(self, image: Image.Image, candidate_points: Optional[List[Tuple[int, int]]] = None) -> List[Tuple[int, int]]:
+        """根据颜色过滤点位（并行处理以提高性能）
+
+        Args:
+            image: 截图图像
+            candidate_points: 候选点列表，如果为 None 则使用 self.all_points
+        """
+        # 使用候选点（如果提供），否则使用全部点位
+        points_to_check = candidate_points if candidate_points is not None else self.all_points
+        point_source_desc = "候选点" if candidate_points is not None else "全部点位"
+
+        self.log(f'📸 开始进行颜色过滤（检查 {point_source_desc}）...', LogLevel.INFO)
 
         # 加载图片数据到内存并获取线程安全的像素访问器
         pixels = image.load()
@@ -136,13 +145,13 @@ class PuzzleSolver:
         with ThreadPoolExecutor(max_workers=self.thread_pool_size) as executor:
             results = list(executor.map(
                 lambda p: self._check_single_point(pixels, p),
-                self.all_points
+                points_to_check
             ))
 
         filtered = [r for r in results if r is not None]
 
         self.log(
-            f'✓ 颜色过滤完成！从 {len(self.all_points)} 个点中筛选出 {len(filtered)} 个有效点',
+            f'✓ 颜色过滤完成！从 {len(points_to_check)} 个{point_source_desc}中筛选出 {len(filtered)} 个有效点',
             LogLevel.SUCCESS
         )
         return filtered
@@ -315,17 +324,23 @@ class PuzzleSolver:
                     break
 
                 # 获取截图
-                screenshot = self.get_screenshot()
-                if not screenshot:
-                    self.log('截图获取失败，停止求解', LogLevel.ERROR)
-                    break
+                if round_count % 2 == 0:
+                    screenshot = self.get_screenshot()
+                    if not screenshot:
+                        self.log('截图获取失败，停止求解', LogLevel.ERROR)
+                        break
 
-                # 颜色过滤
-                self.filtered_points = self.filter_points_by_color(screenshot)
+                    # 颜色过滤：第一轮使用全部点位，后续轮次使用上一轮的结果作为候选点
+                    if round_count == 0:
+                        self.filtered_points = self.filter_points_by_color(
+                            screenshot)
+                    else:
+                        self.filtered_points = self.filter_points_by_color(
+                            screenshot, candidate_points=self.filtered_points)
 
-                if not self.filtered_points:
-                    self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
-                    break
+                    if not self.filtered_points:
+                        self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
+                        break
 
                 # 求解这一轮
                 if not self.solve_round():
