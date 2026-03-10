@@ -140,10 +140,9 @@ def get_digit_contours_by_black(img, debug_dir=None):
 # OCR 识别函数
 # ============================================================
 
-# 并行OCR线程数
+# 并行OCR线程数配置
 cpu_cores = os.cpu_count() or 4
-OCR_MAX_WORKERS = min(cpu_cores - 1, 8)
-ROW_COL_PARALLEL_WORKERS = min(cpu_cores // 2, 2)
+ROW_COL_PARALLEL_WORKERS = min(cpu_cores - 1, 4)
 
 
 def _ocr_single_digit(args):
@@ -190,26 +189,26 @@ def f_row(img, row_digits):
     # 使用并行OCR
     result = _parallel_ocr(row_digits, img)
     result.sort(key=lambda x: (x[1], x[0]))
-    group = defaultdict(list)
-    ls = -1000
+    position_groups = defaultdict(list)
+    last_position = -1000
     for x, y, text in result:
-        if y - ls > SAME_ROW_THRESHOLD:
-            group[y].append([text, x])
-            ls = y
+        if y - last_position > SAME_ROW_THRESHOLD:
+            position_groups[y].append([text, x])
+            last_position = y
         else:
-            group[ls].append([text, x])
+            position_groups[last_position].append([text, x])
     ans = []
-    for y, vs in group.items():
-        vs.sort(key=lambda x: x[1])
-        tmp = []
-        lx = -1000
-        for t, x in vs:
-            if x - lx < MERGE_DISTANCE:
-                tmp[-1] += t
+    for y, values in position_groups.items():
+        values.sort(key=lambda x: x[1])
+        merged = []
+        last_x = -1000
+        for t, x in values:
+            if x - last_x < MERGE_DISTANCE:
+                merged[-1] += t
             else:
-                tmp.append(t)
-                lx = x
-        ans.append(" ".join(tmp))
+                merged.append(t)
+                last_x = x
+        ans.append(" ".join(merged))
     return '\n'.join(ans)
 
 
@@ -219,32 +218,32 @@ def f_col(img, col_digits):
     # 使用并行OCR
     result = _parallel_ocr(col_digits, img)
 
-    #  result 先按 x 排序分组，再按y 排序 分组
+    # result 先按 x 排序分组，再按 y 排序 分组
     result.sort(key=lambda x: (x[0], x[1]))
-    group = defaultdict(list)
-    ls = -1000
+    primary_groups = defaultdict(list)
+    last_position = -1000
     for x, y, text in result:
-        if x - ls > MERGE_DISTANCE:
-            group[x].append([x, y, text])
-            ls = x
+        if x - last_position > MERGE_DISTANCE:
+            primary_groups[x].append([x, y, text])
+            last_position = x
         else:
-            group[ls].append([x, y, text])
+            primary_groups[last_position].append([x, y, text])
     ans = []
-    for x, vs in group.items():
-        vs.sort(key=lambda x: x[1])
-        ng = defaultdict(list)
-        ls = -1000
-        for x, y, text in vs:
-            if y-ls > MERGE_DISTANCE:
-                ng[y].append([x, y, text])
-                ls = y
+    for x, values in primary_groups.items():
+        values.sort(key=lambda x: x[1])
+        secondary_groups = defaultdict(list)
+        last_position = -1000
+        for x_item, y, text in values:
+            if y - last_position > MERGE_DISTANCE:
+                secondary_groups[y].append([x_item, y, text])
+                last_position = y
             else:
-                ng[ls].append([x, y, text])
-        tmp = []
-        for y, vs2 in ng.items():
-            vs2.sort(key=lambda x: x[0])
-            tmp.append("".join(item[2] for item in vs2))
-        ans.append(" ".join(tmp))
+                secondary_groups[last_position].append([x_item, y, text])
+        merged = []
+        for y, secondary_values in secondary_groups.items():
+            secondary_values.sort(key=lambda x: x[0])
+            merged.append("".join(item[2] for item in secondary_values))
+        ans.append(" ".join(merged))
 
     return '\n'.join(ans)
 
