@@ -796,6 +796,7 @@
         function initGameSession() {
             gameSession.id = Date.now().toString();
             gameSession.hasConfigured = false;
+            gameSession.aiRecognizedArea = null;  // 清除 AI 识别的区域信息
             clickedCells.clear();
             console.log('游戏会话已初始化:', gameSession.id);
         }
@@ -1110,7 +1111,14 @@
                 document.getElementById('row-constraints').value = processConstraints(data.row || '');
                 document.getElementById('col-constraints').value = processConstraints(data.col || '');
 
-                statusEl.textContent = '✓ 约束识别成功，请点击"求解"';
+                // 如果 AI 返回了游戏区域信息，保存起来供 solve() 使用
+                if (data.gameArea) {
+                    gameSession.aiRecognizedArea = data.gameArea;
+                    console.log('AI 识别到游戏区域:', data.gameArea);
+                    statusEl.textContent = '✓ 约束识别成功，已获取游戏区域，请点击"求解"';
+                } else {
+                    statusEl.textContent = '✓ 约束识别成功，请点击"求解"';
+                }
                 statusEl.className = 'device-connected';
 
             } catch (error) {
@@ -1166,8 +1174,24 @@
                 statusEl.textContent = "求解成功！";
                 resultArea.classList.add('show');
 
-                // 求解成功后根据会话状态决定是否弹出截图选择窗口
-                if (!gameSession.hasConfigured) {
+                // 求解成功后决定游戏区域的配置方式
+                if (gameSession.aiRecognizedArea && !gameSession.hasConfigured) {
+                    // 优先使用 AI 识别的游戏区域
+                    const area = gameSession.aiRecognizedArea;
+                    adbConfig.startX = area.startX;
+                    adbConfig.startY = area.startY;
+                    adbConfig.gridWidth = area.gridWidth;
+                    adbConfig.gridHeight = area.gridHeight;
+
+                    // 保存配置到 localStorage
+                    saveConfig();
+
+                    // 标记会话已配置
+                    gameSession.hasConfigured = true;
+                    console.log('使用 AI 识别的游戏区域:', area);
+                    statusEl.textContent = `求解成功！已自动配置游戏区域（起点 ${area.startX},${area.startY}）`;
+                } else if (!gameSession.hasConfigured) {
+                    // 没有 AI 识别区域且未配置过，弹出截图选择窗口
                     console.log('首次配置截图区域');
                     openScreenshotModal();
                 } else {

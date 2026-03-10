@@ -4,6 +4,7 @@ ADB 代理服务器
 接收来自网页的 ADB 命令请求，通过本地 ADB 执行
 """
 
+import nonogram_recognizer
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import subprocess
@@ -16,7 +17,6 @@ from datetime import datetime
 
 # 添加当前目录到 path 以便导入模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import nonogram_recognizer
 
 
 # 常量定义
@@ -133,11 +133,19 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 image_base64 = self._capture_screenshot()
                 # 2. 用 AI 分析约束
                 constraints = self._analyze_nonogram_constraints(image_base64)
-                self.send_json_response({
+                # 3. 构造响应（包含约束数据和游戏区域）
+                response_data = {
                     'status': Status.OK,
                     'row': constraints.get('row', ''),
                     'col': constraints.get('col', '')
-                })
+                }
+                # 添加识别到的游戏区域信息
+                game_area = constraints.get('gameArea')
+                if game_area:
+                    response_data['gameArea'] = game_area
+                    self.log_message(
+                        f"游戏区域: 起点({game_area['startX']},{game_area['startY']}), 尺寸({game_area['gridWidth']}x{game_area['gridHeight']})")
+                self.send_json_response(response_data)
                 self.log_message("数织游戏约束分析成功")
             except Exception as e:
                 self.log_message(f"分析失败: {str(e)}")
@@ -232,12 +240,33 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             result = nonogram_recognizer.recognize_from_image(temp_path)
 
             # 提取结果并格式化
+            # 识别器返回的 pos 是 ((x1, y1), (x2, y2))
+            # (x1, y1): 行数字区域的右边界 (行提示结束位置)
+            # (x2, y2): 列数字区域的下边界 (列提示结束位置)
+            # 游戏网格从 (x1, y2) 开始
+            pos = result.get('pos')  # ((x1, y1), (x2, y2))
+            game_area = None
+            if pos and len(pos) == 2:
+                x1, y1 = pos[0]
+                x2, y2 = pos[1]
+                game_area = {
+                    'startX': x1,
+                    'startY': y1,
+                    'gridWidth': x2 - x1,
+                    'gridHeight': y2 - y1
+                }
+                self.log_message(
+                    f"识别到游戏区域: 起点({x1},{y1}), 尺寸({x2-x1}x{y2-y1})")
+
             data = {
                 'row': result.get('row', '').replace('\n', '\\n'),
                 'col': result.get('col', '').replace('\n', '\\n')
             }
+            if game_area:
+                data['gameArea'] = game_area
 
-            self.log_message(f"本地识别成功: row={data['row'][:50]}..., col={data['col'][:50]}...")
+            self.log_message(
+                f"本地识别成功: row={data['row'][:50]}..., col={data['col'][:50]}...")
             return data
 
         except Exception as e:
