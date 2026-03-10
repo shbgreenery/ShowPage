@@ -2,10 +2,16 @@
 """
 拼图暴力求解器 - Python 版本
 直接调用 ADB 命令，无需 HTTP 代理，性能最优
+
+优化特性：
+- 动态线程池：根据 CPU 核心数自动调整（4-16 线程）
+- 批量 ADB 命令执行：将多个操作合并到单个 shell 脚本中
+- 优化延迟时间：减少不必要的等待
 """
 
 import subprocess
 import time
+import os
 from io import BytesIO
 from PIL import Image
 from datetime import datetime
@@ -37,6 +43,8 @@ class PuzzleSolver:
         self.current_round = 0
         self.all_points = self._generate_points()
         self.filtered_points: List[Tuple[int, int]] = []
+        # 动态设置线程池大小：CPU 核心数，最少 4，最多 16
+        self.thread_pool_size = max(4, min(16, os.cpu_count() or 1))
 
     def log(self, message: str, level: LogLevel = LogLevel.INFO):
         """输出日志"""
@@ -125,7 +133,7 @@ class PuzzleSolver:
         # 加载图片数据到内存并获取线程安全的像素访问器
         pixels = image.load()
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=self.thread_pool_size) as executor:
             results = list(executor.map(
                 lambda p: self._check_single_point(pixels, p),
                 self.all_points
@@ -139,8 +147,23 @@ class PuzzleSolver:
         )
         return filtered
 
+    def _build_swipe_commands(self, x: int, y: int) -> List[str]:
+        """构建单个点的拖动命令序列"""
+        sx, sy = SWIPE_START
+        mid_x, mid_y = SWIPE_MID_POINT
+        target_y = y + 300
+
+        return [
+            f'input motionevent DOWN {sx} {sy}',
+            f'input motionevent MOVE {mid_x} {mid_y}',
+            f'input motionevent MOVE {x} {target_y}',
+            f'input motionevent UP {x} {target_y}',
+            f'input tap {TAP_COORD[0]} {TAP_COORD[1]}',
+            f'input keyevent sleep 10'  # 10ms 短暂延迟
+        ]
+
     def perform_swipe(self, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
-        """执行拖动操作 - 使用 motionevent 模拟"""
+        """执行拖动操作 - 使用 motionevent 模拟（保留用于单个点操作）"""
         try:
             # 构建事件序列
             events = [f'input motionevent DOWN {start_x} {start_y}']
@@ -175,7 +198,7 @@ class PuzzleSolver:
             return False
 
     def perform_tap(self, x: int, y: int) -> bool:
-        """执行点击操作"""
+        """执行点击操作（保留用于单个点操作）"""
         try:
             result = subprocess.run(
                 ['adb', 'shell', f'input tap {x} {y}'],
@@ -197,7 +220,7 @@ class PuzzleSolver:
             return False
 
     def solve_point(self, x: int, y: int) -> bool:
-        """求解单个点位"""
+        """求解单个点位（保留用于兼容性，新代码使用批量操作）"""
         # 第一步：拖动
         swipe_success = self.perform_swipe(
             SWIPE_START[0], SWIPE_START[1], x, y + 300)
@@ -219,7 +242,7 @@ class PuzzleSolver:
         return True
 
     def solve_round(self) -> bool:
-        """执行一轮求解"""
+        """执行一轮求解（批量执行 ADB 命令以提升性能）"""
         if not self.filtered_points:
             self.log('⚠️ 没有可处理的点位', LogLevel.ERROR)
             return False
@@ -228,16 +251,53 @@ class PuzzleSolver:
         self.log(
             f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', LogLevel.INFO)
 
+        # 构建批量命令脚本
+        all_commands = []
+        for x, y in self.filtered_points:
+            all_commands.extend(self._build_swipe_commands(x, y))
+
         # 使用进度条显示处理进度
-        with tqdm(self.filtered_points, total=total_points,
+        with tqdm(total=len(self.filtered_points),
                   desc=f'  轮次 {self.current_round + 1}',
                   unit='点', leave=True) as pbar:
-            for x, y in pbar:
-                if not self.solve_point(x, y):
+
+            # 分批执行，避免单次 shell 脚本过大
+            batch_size = 20  # 每批处理 20 个点
+            for i in range(0, len(self.filtered_points), batch_size):
+                batch_end = min(i + batch_size, len(self.filtered_points))
+                batch_points = self.filtered_points[i:batch_end]
+
+                # 构建批量命令
+                batch_commands = []
+                for x, y in batch_points:
+                    batch_commands.extend(self._build_swipe_commands(x, y))
+
+                shell_script = '\n'.join(batch_commands)
+
+                try:
+                    result = subprocess.run(
+                        ['adb', 'shell', shell_script],
+                        capture_output=True,
+                        timeout=30
+                    )
+
+                    if result.returncode != 0:
+                        self.log(
+                            f'批量操作失败: {result.stderr.decode()}', LogLevel.ERROR)
+                        return False
+
+                except subprocess.TimeoutExpired:
+                    self.log('批量操作超时', LogLevel.ERROR)
+                    return False
+                except Exception as e:
+                    self.log(f'批量操作异常: {e}', LogLevel.ERROR)
                     return False
 
-                # 短延迟避免过快
-                time.sleep(0.01)
+                # 更新进度条
+                pbar.update(len(batch_points))
+
+                # 批次间极短延迟
+                time.sleep(0.02)
 
         self.current_round += 1
         print(f'✓ 第 {self.current_round} 轮完成！', flush=True)
@@ -271,8 +331,8 @@ class PuzzleSolver:
                 if not self.solve_round():
                     break
 
-                # 轮次间延迟
-                time.sleep(0.05)
+                # 轮次间延迟（优化：减少延迟时间）
+                time.sleep(0.02)
                 round_count += 1
 
         except KeyboardInterrupt:
@@ -295,7 +355,8 @@ def main():
 
     solver = PuzzleSolver()
 
-    # 显示所有点位信息
+    # 显示配置信息
+    print(f"🔧 线程池大小: {solver.thread_pool_size} (基于 CPU 核心: {os.cpu_count()})")
     print(f"📍 已生成 {len(solver.all_points)} 个点位")
     print(f"   示例: {solver.all_points[:5]}")
     print()
