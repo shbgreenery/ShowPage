@@ -17,6 +17,7 @@ import json
 import pytesseract
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+import os
 
 
 # ============================================================
@@ -87,14 +88,16 @@ def get_digit_contours_by_black(img, debug_dir=None):
     """
     # 1. 转灰度并提取极黑区域 (描边阈值)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, black_mask = cv2.threshold(gray, BLACK_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
+    _, black_mask = cv2.threshold(
+        gray, BLACK_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
 
     # 2. 较小的形态学闭合
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, MORPH_KERNEL_SIZE)
     closed = cv2.morphologyEx(black_mask, cv2.MORPH_CLOSE, kernel)
 
     # 3. 寻找轮廓
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     print(f"检测到 {len(contours)} 个轮廓")
 
     if debug_dir:
@@ -138,7 +141,9 @@ def get_digit_contours_by_black(img, debug_dir=None):
 # ============================================================
 
 # 并行OCR线程数
-OCR_MAX_WORKERS = 8
+cpu_cores = os.cpu_count() or 4
+OCR_MAX_WORKERS = min(cpu_cores - 1, 8)
+ROW_COL_PARALLEL_WORKERS = min(cpu_cores // 2, 2)
 
 
 def _ocr_single_digit(args):
@@ -146,7 +151,7 @@ def _ocr_single_digit(args):
     x, y, w, h, img = args
     crop = img[y:y + h, x:x + w]
     crop = cv2.copyMakeBorder(crop, CROP_MARGIN, CROP_MARGIN, CROP_MARGIN, CROP_MARGIN,
-                               cv2.BORDER_CONSTANT, value=(255, 255, 255))
+                              cv2.BORDER_CONSTANT, value=(255, 255, 255))
     if len(crop.shape) == 3:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     else:
@@ -173,7 +178,7 @@ def _parallel_ocr(digit_regions, img):
     tasks = [(x, y, w, h, img) for (x, y, w, h) in digit_regions]
 
     # 使用线程池并行执行
-    with ThreadPoolExecutor(max_workers=OCR_MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=ROW_COL_PARALLEL_WORKERS) as executor:
         results = list(executor.map(_ocr_single_digit, tasks))
 
     return results
@@ -215,28 +220,28 @@ def f_col(img, col_digits):
     result = _parallel_ocr(col_digits, img)
 
     #  result 先按 x 排序分组，再按y 排序 分组
-    result.sort( key=lambda x: (x[0], x[1]))
+    result.sort(key=lambda x: (x[0], x[1]))
     group = defaultdict(list)
     ls = -1000
     for x, y, text in result:
         if x - ls > MERGE_DISTANCE:
-            group[x].append([x,y,text])
+            group[x].append([x, y, text])
             ls = x
         else:
-            group[ls].append([x,y,text])
+            group[ls].append([x, y, text])
     ans = []
     for x, vs in group.items():
         vs.sort(key=lambda x: x[1])
         ng = defaultdict(list)
         ls = -1000
-        for x,y,text in vs:
-            if y-ls>MERGE_DISTANCE:
-                ng[y].append([x,y,text])
+        for x, y, text in vs:
+            if y-ls > MERGE_DISTANCE:
+                ng[y].append([x, y, text])
                 ls = y
             else:
-                ng[ls].append([x,y,text])
+                ng[ls].append([x, y, text])
         tmp = []
-        for y,vs2 in ng.items():
+        for y, vs2 in ng.items():
             vs2.sort(key=lambda x: x[0])
             tmp.append("".join(item[2] for item in vs2))
         ans.append(" ".join(tmp))
@@ -280,7 +285,8 @@ def recognize_from_image(img_path, debug=False):
         cv2.imwrite(str(debug_dir / "03_ocr_preprocess.png"), img)
 
     # 从img中找黑色的数字区域
-    row_digits, col_digits, p1, p2 = get_digit_contours_by_black(img, debug_dir)
+    row_digits, col_digits, p1, p2 = get_digit_contours_by_black(
+        img, debug_dir)
 
     # 并行执行行和列的OCR识别，提升约50%性能
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -297,7 +303,8 @@ def recognize_from_image(img_path, debug=False):
 
 def main():
     parser = argparse.ArgumentParser(description='数织约束识别器')
-    parser.add_argument('image', nargs='?', default='screen.png', help='图像文件路径')
+    parser.add_argument('image', nargs='?',
+                        default='screen.png', help='图像文件路径')
     parser.add_argument('--debug', action='store_true', help='保存调试图像')
     args = parser.parse_args()
 
