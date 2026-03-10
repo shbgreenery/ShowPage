@@ -4,16 +4,13 @@ ADB 代理服务器
 接收来自网页的 ADB 命令请求，通过本地 ADB 执行
 """
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import subprocess
 import json
 import sys
 import base64
 import os
-import io
-import re
-import requests
 import tempfile
 from datetime import datetime
 
@@ -38,13 +35,6 @@ class Config:
     DEFAULT_PORT = 8085
     DEVICE_TIMEOUT = 5
     DEFAULT_TIMEOUT = 30
-    SWIPE_MID_X = 100
-    SWIPE_MID_Y = 1660
-    STEP_PIXEL_SIZE = 100
-    MIN_STEPS = 2
-    # AI API 配置 (本地代理)
-    ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-    ANTHROPIC_API_URL = 'http://127.0.0.1:3456/v1/messages'
 
 
 class ADBCommand:
@@ -237,16 +227,16 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             temp_path = tmp_file.name
 
         try:
-            # 2. 调用本地识别器
+            # 调用本地识别器
             self.log_message("开始使用本地识别器分析数织约束")
             result = nonogram_recognizer.recognize_from_image(temp_path)
 
-            # 3. 提取结果并格式化
+            # 提取结果并格式化
             data = {
                 'row': result.get('row', '').replace('\n', '\\n'),
                 'col': result.get('col', '').replace('\n', '\\n')
             }
-            
+
             self.log_message(f"本地识别成功: row={data['row'][:50]}..., col={data['col'][:50]}...")
             return data
 
@@ -254,7 +244,7 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             self.log_message(f"本地识别失败: {str(e)}")
             raise Exception(f'本地识别失败: {str(e)}')
         finally:
-            # 5. 清理临时文件
+            # 清理临时文件
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
@@ -284,7 +274,6 @@ def main():
     print(f"   GET  /screenshot        - 获取设备截图")
     print(f"   GET  /analyze-nonogram  - 分析数织游戏约束")
     print(f"   POST /tap               - 执行点击操作")
-    print(f"   POST /swipe             - 执行拖动操作")
     print(f"💡 按 Ctrl+C 停止服务器")
 
     try:
