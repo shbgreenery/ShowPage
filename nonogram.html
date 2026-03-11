@@ -721,6 +721,9 @@
                 <div class="control-row">
                     <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个填充</button>
                 </div>
+                <div class="control-row">
+                    <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">AI识别并求解</button>
+                </div>
             </div>
 
             <!-- 服务器配置 -->
@@ -1175,24 +1178,9 @@
                 resultArea.classList.add('show');
 
                 // 求解成功后决定游戏区域的配置方式
-                if (gameSession.aiRecognizedArea && !gameSession.hasConfigured) {
-                    // 优先使用 AI 识别的游戏区域
-                    const area = gameSession.aiRecognizedArea;
-                    adbConfig.startX = area.startX;
-                    adbConfig.startY = area.startY;
-                    adbConfig.gridWidth = area.gridWidth;
-                    adbConfig.gridHeight = area.gridHeight;
-
-                    // 保存配置到 localStorage
-                    saveConfig();
-
-                    // 标记会话已配置
-                    gameSession.hasConfigured = true;
-                    console.log('使用 AI 识别的游戏区域:', area);
-                    statusEl.textContent = `求解成功！已自动配置游戏区域（起点 ${area.startX},${area.startY}）`;
-                } else if (!gameSession.hasConfigured) {
-                    // 没有 AI 识别区域且未配置过，弹出截图选择窗口
-                    console.log('首次配置截图区域');
+                if (!gameSession.hasConfigured) {
+                    // 无论是否有 AI 识别区域，都弹出截图选择框（AI 区域将作为默认值预填充）
+                    console.log('首次配置截图区域', gameSession.aiRecognizedArea ? '(AI区域已识别)' : '');
                     openScreenshotModal();
                 } else {
                     console.log('使用已配置的截图区域，会话ID:', gameSession.id);
@@ -1524,6 +1512,40 @@
             clickedCells.clear();
         }
 
+        // 自动完整流程：清空 -> AI识别 -> 求解
+        async function autoFullProcess() {
+            const statusEl = document.getElementById('status');
+            const autoBtn = document.getElementById('auto-full-btn');
+
+            // 禁用按钮
+            autoBtn.disabled = true;
+            autoBtn.textContent = '执行中...';
+
+            try {
+                // 1. 清空
+                statusEl.textContent = '步骤 1/3: 清空...';
+                clearConstraints();
+                await new Promise(resolve => setTimeout(resolve, 100)); // 短暂延迟确保UI更新
+
+                // 2. AI 识别约束
+                statusEl.textContent = '步骤 2/3: AI 识别约束...';
+                await analyzeFromScreenshot();
+
+                // 3. 求解
+                statusEl.textContent = '步骤 3/3: 求解...';
+                solve();
+
+            } catch (error) {
+                console.error('自动流程失败:', error);
+                statusEl.textContent = `✗ 自动流程失败: ${error.message}`;
+                statusEl.className = 'device-disconnected';
+            } finally {
+                // 恢复按钮状态
+                autoBtn.disabled = false;
+                autoBtn.textContent = 'AI识别并求解';
+            }
+        }
+
         // 点击下一个未点击的填充格子
         async function tapNextFilled() {
             const statusEl = document.getElementById('status');
@@ -1547,8 +1569,7 @@
             }
 
             if (!nextCell) {
-                alert('没有未点击的填充格子了！');
-                return;
+                return; // 没有未点击的填充格子，静默返回
             }
 
             // 计算屏幕坐标
@@ -1791,41 +1812,51 @@
                     selectionState.imageWidth = rect.width;
                     selectionState.imageHeight = rect.height;
 
-                    // 计算缩放比例（用于将记忆的实际坐标转换为显示坐标）
+                    // 计算缩放比例（用于将实际坐标转换为显示坐标）
                     const scaleX = rect.width / screenshotImage.naturalWidth;
                     const scaleY = rect.height / screenshotImage.naturalHeight;
 
-                    // 尝试加载记忆的位置
-                    const memory = loadSelectionMemory();
-                    const hasMemory = memory.colMemory || memory.rowMemory;
+                    // 优先使用 AI 识别的游戏区域
+                    if (gameSession.aiRecognizedArea) {
+                        const area = gameSession.aiRecognizedArea;
+                        selectionState.leftX = area.startX * scaleX;
+                        selectionState.leftY = area.startY * scaleY;
+                        selectionState.rightX = (area.startX + area.gridWidth) * scaleX;
+                        selectionState.rightY = (area.startY + area.gridHeight) * scaleY;
+                        console.log(`使用 AI 识别区域: startX=${area.startX}, startY=${area.startY}, w=${area.gridWidth}, h=${area.gridHeight}`);
+                    } else {
+                        // 尝试加载记忆的位置
+                        const memory = loadSelectionMemory();
+                        const hasMemory = memory.colMemory || memory.rowMemory;
 
-                    if (hasMemory) {
-                        // 分别加载列记忆（X坐标）和行记忆（Y坐标）
-                        if (memory.colMemory) {
-                            selectionState.leftX = memory.colMemory.startX * scaleX;
-                            // 优先使用记忆的 endX，否则用 startX + gridWidth
-                            selectionState.rightX = (memory.colMemory.endX || (memory.colMemory.startX + memory.colMemory.gridWidth)) * scaleX;
-                            console.log(`已加载列记忆: startX=${memory.colMemory.startX}, endX=${memory.colMemory.endX}`);
+                        if (hasMemory) {
+                            // 分别加载列记忆（X坐标）和行记忆（Y坐标）
+                            if (memory.colMemory) {
+                                selectionState.leftX = memory.colMemory.startX * scaleX;
+                                // 优先使用记忆的 endX，否则用 startX + gridWidth
+                                selectionState.rightX = (memory.colMemory.endX || (memory.colMemory.startX + memory.colMemory.gridWidth)) * scaleX;
+                                console.log(`已加载列记忆: startX=${memory.colMemory.startX}, endX=${memory.colMemory.endX}`);
+                            } else {
+                                selectionState.leftX = rect.width * 0.2;
+                                selectionState.rightX = rect.width * 0.8;
+                            }
+
+                            if (memory.rowMemory) {
+                                selectionState.leftY = memory.rowMemory.startY * scaleY;
+                                // 优先使用记忆的 endY，否则用 startY + gridHeight
+                                selectionState.rightY = (memory.rowMemory.endY || (memory.rowMemory.startY + memory.rowMemory.gridHeight)) * scaleY;
+                                console.log(`已加载行记忆: startY=${memory.rowMemory.startY}, endY=${memory.rowMemory.endY}`);
+                            } else {
+                                selectionState.leftY = rect.height * 0.2;
+                                selectionState.rightY = rect.height * 0.8;
+                            }
                         } else {
+                            // 默认在图片的 20% 和 80% 位置
                             selectionState.leftX = rect.width * 0.2;
-                            selectionState.rightX = rect.width * 0.8;
-                        }
-
-                        if (memory.rowMemory) {
-                            selectionState.leftY = memory.rowMemory.startY * scaleY;
-                            // 优先使用记忆的 endY，否则用 startY + gridHeight
-                            selectionState.rightY = (memory.rowMemory.endY || (memory.rowMemory.startY + memory.rowMemory.gridHeight)) * scaleY;
-                            console.log(`已加载行记忆: startY=${memory.rowMemory.startY}, endY=${memory.rowMemory.endY}`);
-                        } else {
                             selectionState.leftY = rect.height * 0.2;
+                            selectionState.rightX = rect.width * 0.8;
                             selectionState.rightY = rect.height * 0.8;
                         }
-                    } else {
-                        // 默认在图片的 20% 和 80% 位置
-                        selectionState.leftX = rect.width * 0.2;
-                        selectionState.leftY = rect.height * 0.2;
-                        selectionState.rightX = rect.width * 0.8;
-                        selectionState.rightY = rect.height * 0.8;
                     }
 
                     setupDragListeners();

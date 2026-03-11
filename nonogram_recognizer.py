@@ -43,7 +43,7 @@ SAME_ROW_THRESHOLD = 20  # 同一行数字的 y 坐标容差
 SAME_COL_THRESHOLD = 20  # 同一列数字的 x 坐标容差
 MERGE_DISTANCE = 28      # 合并相邻数字的间距阈值
 GAME_AREA_Y_START = 500  # 游戏区域 y 坐标起始点
-GAME_AREA_SIZE = (1200, 1900)  # (width, height)
+GAME_AREA_SIZE = (1200, 2200)  # (width, height)
 
 # OCR 配置
 OCR_CONFIG = '--psm 6 -c tessedit_char_whitelist=0123456789'
@@ -133,7 +133,7 @@ def get_digit_contours_by_black(img, debug_dir=None):
 
     print(p1, p2)
 
-    return row_digits, col_digits, (p1[0] + MERGE_DISTANCE, p2[1] + MERGE_DISTANCE), (p2[0] + MERGE_DISTANCE, p1[1] + MERGE_DISTANCE)
+    return row_digits, col_digits, (p1[0] + 30, p2[1] + 50), (p2[0] + 50, p1[1] + 50)
 
 
 # ============================================================
