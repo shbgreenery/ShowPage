@@ -25,7 +25,9 @@ import os
 # ============================================================
 
 # 目标颜色: RGB(252, 254, 83) -> BGR: (83, 254, 252)
-TARGET_COLOR = np.array([83, 254, 252])
+TARGET_COLOR1 = np.array([83, 254, 252])
+# 目标颜色: RGB(172,131 ,31) -> BGR: (31, 131, 172)
+TARGET_COLOR2 = np.array([31, 131, 172])
 # 颜色匹配阈值（欧氏距离）
 COLOR_DISTANCE_THRESHOLD = 20
 # 颜色距离阈值的平方（避免开方运算）
@@ -59,17 +61,20 @@ def ocr_preprocess(crop):
     1. 提取目标颜色（黄绿色数字）区域作为掩码
     2. 该颜色变黑色，其他颜色变白色
 
-    目标颜色: (252, 254, 83) -> BGR: (83, 254, 252)
     """
     if crop.size == 0:
         return None
 
     # 1. 计算每个像素与目标颜色的距离平方（避免开方运算）
-    diff = crop.astype(np.float32) - TARGET_COLOR.astype(np.float32)
+    diff = crop.astype(np.float32) - TARGET_COLOR1.astype(np.float32)
     distance_squared = np.sum(diff ** 2, axis=2)
+    diff2 = crop.astype(np.float32) - TARGET_COLOR2.astype(np.float32)
+    distance_squared2 = np.sum(diff2 ** 2, axis=2)
 
     # 2. 距离平方小于阈值的视为目标颜色
-    mask = distance_squared < COLOR_DISTANCE_SQUARED
+    mask1 = distance_squared < COLOR_DISTANCE_SQUARED
+    mask2 = distance_squared2 < COLOR_DISTANCE_SQUARED
+    mask = mask1 | mask2
 
     # 3. 创建白底黑字：目标颜色为黑，其他为白
     result = np.where(mask[:, :, np.newaxis], (0, 0, 0), (255, 255, 255))
@@ -115,6 +120,8 @@ def get_digit_contours_by_black(img, debug_dir=None):
         x, y, w, h = cv2.boundingRect(cnt)
         if y < GAME_AREA_Y_START:
             continue
+        if w<10 or h<30:
+            continue
         all_digits.append((x, y, w, h))
         if y > p1[1] + SAME_ROW_THRESHOLD:
             p1[1] = y
@@ -155,8 +162,13 @@ def _ocr_single_digit(args):
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     else:
         gray = crop
-    text = pytesseract.image_to_string(gray, config=OCR_CONFIG)
-    return (x, y, text.strip())
+    for psv in [6,7,8,10]:
+        config = f'--psm {psv} -c tessedit_char_whitelist=0123456789'
+        text = pytesseract.image_to_string(gray, config=config)
+        if text.strip():
+            return (x, y, text.strip())
+    # cv2.imwrite(f"debug/{x}_{y}.png", crop)
+    return (x, y, "")
 
 
 def _parallel_ocr(digit_regions, img):
@@ -183,8 +195,116 @@ def _parallel_ocr(digit_regions, img):
     return results
 
 
-def f_row(img, row_digits):
-    """处理行约束数字识别"""
+def _calculate_min_spacing(positions):
+    """计算位置列表中的最小间距"""
+    if len(positions) < 2:
+        return 50  # 默认间距
+    sorted_pos = sorted(positions)
+    min_spacing = float('inf')
+    for i in range(1, len(sorted_pos)):
+        spacing = sorted_pos[i] - sorted_pos[i-1]
+        if spacing > 0:
+            min_spacing = min(min_spacing, spacing)
+    return min_spacing if min_spacing != float('inf') else 50
+
+
+def _pad_constraints(constraints, min_spacing, threshold_factor=1.5):
+    """
+    补全缺失的约束
+
+    参数:
+        constraints: [(position, value), ...] 位置值对列表
+        min_spacing: 最小间距
+        threshold_factor: 判断缺失的阈值倍数
+
+    返回:
+        补全后的约束值列表
+    """
+    if not constraints:
+        return []
+
+    # 按位置排序
+    sorted_constraints = sorted(constraints, key=lambda x: x[0])
+
+    threshold = min_spacing * threshold_factor
+    result = []
+
+    for i, (pos, value) in enumerate(sorted_constraints):
+        if i > 0:
+            prev_pos = sorted_constraints[i-1][0]
+            gap = pos - prev_pos
+            # 如果间距超过阈值，插入缺失的约束
+            if gap > threshold:
+                missing_count = int(round(gap / min_spacing)) - 1
+                for _ in range(max(0, missing_count)):
+                    result.append("-1")
+        result.append(value)
+
+    return result
+
+
+def _finalize_constraints(constraints, target_counts=[10, 15], positions=None, min_spacing=50.0, is_row=True):
+    """
+    最终补齐约束到目标数量
+
+    参数:
+        constraints: 约束值列表
+        target_counts: 目标数量列表（通常是10或15）
+        positions: 约束位置列表，用于边界验证
+        min_spacing: 最小间距，用于计算需要补全的位置
+        is_row: 是否是行约束（True为行，False为列）
+
+    返回:
+        补齐后的约束值列表
+    """
+    # 游戏区域边界验证规则
+    # 行约束：最大的 y 必须大于 1700
+    # 列约束：最大的 x 必须大于 1000
+    # 先根据边界插入必要的 -1，不限制数量
+    if positions and len(positions) > 0:
+        max_pos = max(positions)
+        if is_row:
+            # 行约束，检查 y 坐标
+            if max_pos < 1700:
+                # 需要在末尾补全，直到覆盖到游戏区域边缘
+                needed = int((1700 - max_pos) / min_spacing)
+                for _ in range(max(0, needed)):
+                    constraints.append("-1")
+        else:
+            # 列约束，检查 x 坐标
+            if max_pos < 1000:
+                # 需要在末尾补全，直到覆盖到游戏区域边缘
+                needed = int((1000 - max_pos) / min_spacing)
+                for _ in range(max(0, needed)):
+                    constraints.append("-1")
+
+    # 根据边界插入后的数量，重新计算 target_count
+    current_count = len(constraints)
+    target_count = None
+    for tc in target_counts:
+        if current_count <= tc:
+            target_count = tc
+            break
+
+    if target_count is None:
+        target_count = target_counts[-1]
+
+    # 补齐到目标数量
+    while len(constraints) < target_count:
+        constraints.append("-1")
+
+    return constraints[:target_count]
+
+
+def f_row(img, row_digits, col_max_y=None):
+    """
+    处理行约束数字识别
+
+    参数:
+        img: 预处理后的图像
+        row_digits: 行数字区域列表
+        col_max_y: 列约束的最大y坐标，用于确定行约束的起始位置
+    """
     print(f"检测到 {len(row_digits)} 个行数字区域")
     # 使用并行OCR
     result = _parallel_ocr(row_digits, img)
@@ -197,7 +317,9 @@ def f_row(img, row_digits):
             last_position = y
         else:
             position_groups[last_position].append([text, x])
-    ans = []
+
+    # 提取约束和位置信息用于补全
+    constraints_with_pos = []
     for y, values in position_groups.items():
         values.sort(key=lambda x: x[1])
         merged = []
@@ -208,12 +330,46 @@ def f_row(img, row_digits):
             else:
                 merged.append(t)
                 last_x = x
-        ans.append(" ".join(merged))
-    return '\n'.join(ans)
+        constraint_value = " ".join(merged) if merged else "-1"
+        constraints_with_pos.append((y, constraint_value))
+
+    # 计算最小行间距
+    y_positions = [pos for pos, _ in constraints_with_pos]
+    min_dy = _calculate_min_spacing(y_positions)
+
+    # 如果有列约束的最大y坐标，检查是否需要从该位置开始补全
+    if col_max_y is not None and constraints_with_pos:
+        expected_start_y = col_max_y + 50
+        first_row_y = constraints_with_pos[0][0]
+        if first_row_y > expected_start_y + min_dy * 1.5:
+            # 需要在开头补全缺失的行
+            missing_count = int(round((first_row_y - expected_start_y) / min_dy))
+            for _ in range(max(0, missing_count)):
+                constraints_with_pos.insert(0, (expected_start_y, "-1"))
+
+    # 补全中间缺失的行
+    padded_constraints = _pad_constraints(constraints_with_pos, min_dy)
+
+    # 最终补齐到目标数量（10或15），传入位置信息进行边界验证
+    final_constraints = _finalize_constraints(
+        padded_constraints,
+        positions=y_positions,
+        min_spacing=min_dy,
+        is_row=True
+    )
+
+    return '\n'.join(final_constraints)
 
 
-def f_col(img, col_digits):
-    """处理列约束数字识别"""
+def f_col(img, col_digits, row_max_x=None):
+    """
+    处理列约束数字识别
+
+    参数:
+        img: 预处理后的图像
+        col_digits: 列数字区域列表
+        row_max_x: 行约束的最大x坐标，用于确定列约束的起始位置
+    """
     print(f"检测到 {len(col_digits)} 个列数字区域")
     # 使用并行OCR
     result = _parallel_ocr(col_digits, img)
@@ -228,7 +384,9 @@ def f_col(img, col_digits):
             last_position = x
         else:
             primary_groups[last_position].append([x, y, text])
-    ans = []
+
+    # 提取约束和位置信息用于补全
+    constraints_with_pos = []
     for x, values in primary_groups.items():
         values.sort(key=lambda x: x[1])
         secondary_groups = defaultdict(list)
@@ -243,9 +401,35 @@ def f_col(img, col_digits):
         for y, secondary_values in secondary_groups.items():
             secondary_values.sort(key=lambda x: x[0])
             merged.append("".join(item[2] for item in secondary_values))
-        ans.append(" ".join(merged))
+        constraint_value = " ".join(merged) if merged else "-1"
+        constraints_with_pos.append((x, constraint_value))
 
-    return '\n'.join(ans)
+    # 计算最小列间距
+    x_positions = [pos for pos, _ in constraints_with_pos]
+    min_dx = _calculate_min_spacing(x_positions)
+
+    # 如果有行约束的最大x坐标，检查是否需要从该位置开始补全
+    if row_max_x is not None and constraints_with_pos:
+        expected_start_x = row_max_x + 30
+        first_col_x = constraints_with_pos[0][0]
+        if first_col_x > expected_start_x + min_dx * 1.5:
+            # 需要在开头补全缺失的列
+            missing_count = int(round((first_col_x - expected_start_x) / min_dx))
+            for _ in range(max(0, missing_count)):
+                constraints_with_pos.insert(0, (expected_start_x, "-1"))
+
+    # 补全中间缺失的列
+    padded_constraints = _pad_constraints(constraints_with_pos, min_dx)
+
+    # 最终补齐到目标数量（10或15），传入位置信息进行边界验证
+    final_constraints = _finalize_constraints(
+        padded_constraints,
+        positions=x_positions,
+        min_spacing=min_dx,
+        is_row=False
+    )
+
+    return '\n'.join(final_constraints)
 
 
 # ============================================================
@@ -284,13 +468,24 @@ def recognize_from_image(img_path, debug=False):
         cv2.imwrite(str(debug_dir / "03_ocr_preprocess.png"), img)
 
     # 从img中找黑色的数字区域
+    # p1: (row_max_x + 30, col_max_y + 50) - 行约束的x边界, 列约束的y边界
+    # p2: (col_max_x + 50, row_max_y + 50) - 列约束的x边界, 行约束的y边界
     row_digits, col_digits, p1, p2 = get_digit_contours_by_black(
         img, debug_dir)
 
+    # 提取边界坐标用于补全逻辑
+    # p1[0] = row_max_x + 30, p1[1] = col_max_y + 50
+    # p2[0] = col_max_x + 50, p2[1] = row_max_y + 50
+    row_max_x = p1[0] - 30
+    col_max_y = p1[1] - 50
+    col_max_x = p2[0] - 50
+    row_max_y = p2[1] - 50
+
     # 并行执行行和列的OCR识别，提升约50%性能
+    # 传递坐标信息用于行列补全
     with ThreadPoolExecutor(max_workers=2) as executor:
-        row_future = executor.submit(f_row, img, row_digits)
-        col_future = executor.submit(f_col, img, col_digits)
+        row_future = executor.submit(f_row, img, row_digits, col_max_y)
+        col_future = executor.submit(f_col, img, col_digits, row_max_x)
         row, col = row_future.result(), col_future.result()
 
     return {
