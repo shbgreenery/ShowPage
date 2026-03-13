@@ -14,7 +14,6 @@ import time
 import os
 from io import BytesIO
 from PIL import Image
-from datetime import datetime
 from typing import List, Tuple, Optional
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
@@ -42,7 +41,7 @@ class PuzzleSolver:
     def __init__(self):
         self.current_round = 0
         self.all_points = self._generate_points()
-        self.filtered_points: List[Tuple[int, int]] = []
+        self.filtered_points: List[Tuple[int, int]] = self.all_points[:]
         # 动态设置线程池大小：CPU 核心数，最少 4，最多 16
         self.thread_pool_size = max(4, min(16, os.cpu_count() or 1))
 
@@ -135,9 +134,7 @@ class PuzzleSolver:
         """
         # 使用候选点（如果提供），否则使用全部点位
         points_to_check = candidate_points if candidate_points is not None else self.all_points
-        point_source_desc = "候选点" if candidate_points is not None else "全部点位"
-
-        self.log(f'📸 开始进行颜色过滤（检查 {point_source_desc}）...', LogLevel.INFO)
+        self.log(f'📸 开始进行颜色过滤...', LogLevel.INFO)
 
         # 加载图片数据到内存并获取线程安全的像素访问器
         pixels = image.load()
@@ -151,7 +148,7 @@ class PuzzleSolver:
         filtered = [r for r in results if r is not None]
 
         self.log(
-            f'✓ 颜色过滤完成！从 {len(points_to_check)} 个{point_source_desc}中筛选出 {len(filtered)} 个有效点',
+            f'✓ 颜色过滤完成！从 {len(points_to_check)} 个候选点中筛选出 {len(filtered)} 个有效点',
             LogLevel.SUCCESS
         )
         return filtered
@@ -168,87 +165,8 @@ class PuzzleSolver:
             f'input motionevent MOVE {x} {target_y}',
             f'input motionevent UP {x} {target_y}',
             f'input tap {TAP_COORD[0]} {TAP_COORD[1]}',
-            f'input keyevent sleep 10'  # 10ms 短暂延迟
+            # f'input keyevent sleep 10'  # 10ms 短暂延迟
         ]
-
-    def perform_swipe(self, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
-        """执行拖动操作 - 使用 motionevent 模拟（保留用于单个点操作）"""
-        try:
-            # 构建事件序列
-            events = [f'input motionevent DOWN {start_x} {start_y}']
-
-            # 起点 → 中点 → 终点（经过中间点）
-            mid_x, mid_y = SWIPE_MID_POINT
-            events.append(f'input motionevent MOVE {mid_x} {mid_y}')
-            events.append(f'input motionevent MOVE {end_x} {end_y}')
-
-            # 抬起事件
-            events.append(f'input motionevent UP {end_x} {end_y}')
-
-            # 执行事件序列
-            shell_script = '\n'.join(events)
-            result = subprocess.run(
-                ['adb', 'shell', shell_script],
-                capture_output=True,
-                timeout=10
-            )
-
-            if result.returncode != 0:
-                self.log(f'拖动操作失败: {result.stderr.decode()}', LogLevel.ERROR)
-                return False
-
-            return True
-
-        except subprocess.TimeoutExpired:
-            self.log('拖动操作超时', LogLevel.ERROR)
-            return False
-        except Exception as e:
-            self.log(f'拖动操作异常: {e}', LogLevel.ERROR)
-            return False
-
-    def perform_tap(self, x: int, y: int) -> bool:
-        """执行点击操作（保留用于单个点操作）"""
-        try:
-            result = subprocess.run(
-                ['adb', 'shell', f'input tap {x} {y}'],
-                capture_output=True,
-                timeout=10
-            )
-
-            if result.returncode != 0:
-                self.log(f'点击操作失败: {result.stderr.decode()}', LogLevel.ERROR)
-                return False
-
-            return True
-
-        except subprocess.TimeoutExpired:
-            self.log('点击操作超时', LogLevel.ERROR)
-            return False
-        except Exception as e:
-            self.log(f'点击操作异常: {e}', LogLevel.ERROR)
-            return False
-
-    def solve_point(self, x: int, y: int) -> bool:
-        """求解单个点位（保留用于兼容性，新代码使用批量操作）"""
-        # 第一步：拖动
-        swipe_success = self.perform_swipe(
-            SWIPE_START[0], SWIPE_START[1], x, y + 300)
-
-        if not swipe_success:
-            self.log('拖动操作失败，停止本次求解', LogLevel.ERROR)
-            return False
-
-        # 极短延迟，让 ADB 命令完成
-        time.sleep(0.05)
-
-        # 第二步：点击
-        tap_success = self.perform_tap(TAP_COORD[0], TAP_COORD[1])
-
-        if not tap_success:
-            self.log('点击操作失败，停止本次求解', LogLevel.ERROR)
-            return False
-
-        return True
 
     def solve_round(self) -> bool:
         """执行一轮求解（批量执行 ADB 命令以提升性能）"""
@@ -259,11 +177,6 @@ class PuzzleSolver:
         total_points = len(self.filtered_points)
         self.log(
             f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', LogLevel.INFO)
-
-        # 构建批量命令脚本
-        all_commands = []
-        for x, y in self.filtered_points:
-            all_commands.extend(self._build_swipe_commands(x, y))
 
         # 使用进度条显示处理进度
         with tqdm(total=len(self.filtered_points),
@@ -312,17 +225,12 @@ class PuzzleSolver:
         print(f'✓ 第 {self.current_round} 轮完成！', flush=True)
         return True
 
-    def start_solving(self, max_rounds: Optional[int] = None):
+    def start_solving(self):
         """启动求解"""
         round_count = 0
 
         try:
             while True:
-                # 检查轮次限制
-                if max_rounds and round_count >= max_rounds:
-                    self.log(f'✓ 已完成 {max_rounds} 轮求解，停止', LogLevel.SUCCESS)
-                    break
-
                 # 获取截图
                 if round_count % 2 == 0:
                     screenshot = self.get_screenshot()
@@ -330,13 +238,8 @@ class PuzzleSolver:
                         self.log('截图获取失败，停止求解', LogLevel.ERROR)
                         break
 
-                    # 颜色过滤：第一轮使用全部点位，后续轮次使用上一轮的结果作为候选点
-                    if round_count == 0:
-                        self.filtered_points = self.filter_points_by_color(
-                            screenshot)
-                    else:
-                        self.filtered_points = self.filter_points_by_color(
-                            screenshot, candidate_points=self.filtered_points)
+                    self.filtered_points = self.filter_points_by_color(
+                        screenshot, candidate_points=self.filtered_points)
 
                     if not self.filtered_points:
                         self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
@@ -347,7 +250,7 @@ class PuzzleSolver:
                     break
 
                 # 轮次间延迟（优化：减少延迟时间）
-                time.sleep(0.02)
+                # time.sleep(0.02)
                 round_count += 1
 
         except KeyboardInterrupt:
@@ -375,23 +278,11 @@ def main():
     print(f"📍 已生成 {len(solver.all_points)} 个点位")
     print(f"   示例: {solver.all_points[:5]}")
     print()
-
-    # 询问轮次限制
-    max_rounds = None
-    try:
-        user_input = input("请输入求解轮次 (回车为无限循环): ").strip()
-        if user_input:
-            max_rounds = int(user_input)
-            print(f"✓ 将执行 {max_rounds} 轮求解\n")
-    except ValueError:
-        print("❌ 输入无效，使用无限循环模式\n")
-
     # 启动求解
     print("💡 按 Ctrl+C 可以停止求解\n")
-    time.sleep(1)
 
     try:
-        solver.start_solving(max_rounds=max_rounds)
+        solver.start_solving()
     except KeyboardInterrupt:
         pass
 
