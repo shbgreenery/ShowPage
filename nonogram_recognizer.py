@@ -47,6 +47,10 @@ MERGE_DISTANCE = 28      # 合并相邻数字的间距阈值
 GAME_AREA_Y_START = 500  # 游戏区域 y 坐标起始点
 GAME_AREA_SIZE = (1200, 2200)  # (width, height)
 
+# 约束边界验证阈值
+ROW_CONSTRAINT_MIN_Y = 1700  # 行约束最小 y 边界
+COL_CONSTRAINT_MIN_X = 1000  # 列约束最小 x 边界
+
 # OCR 配置
 OCR_CONFIG = '--psm 6 -c tessedit_char_whitelist=0123456789'
 
@@ -243,42 +247,17 @@ def _pad_constraints(constraints, min_spacing, threshold_factor=1.5):
     return result
 
 
-def _finalize_constraints(constraints, target_counts=[10, 15], positions=None, min_spacing=50.0, is_row=True):
+def _finalize_constraints(constraints, target_counts=[10, 15]):
     """
     最终补齐约束到目标数量
 
     参数:
         constraints: 约束值列表
         target_counts: 目标数量列表（通常是10或15）
-        positions: 约束位置列表，用于边界验证
-        min_spacing: 最小间距，用于计算需要补全的位置
-        is_row: 是否是行约束（True为行，False为列）
 
     返回:
         补齐后的约束值列表
     """
-    # 游戏区域边界验证规则
-    # 行约束：最大的 y 必须大于 1700
-    # 列约束：最大的 x 必须大于 1000
-    # 先根据边界插入必要的 -1，不限制数量
-    if positions and len(positions) > 0:
-        max_pos = max(positions)
-        if is_row:
-            # 行约束，检查 y 坐标
-            if max_pos < 1700:
-                # 需要在末尾补全，直到覆盖到游戏区域边缘
-                needed = int((1700 - max_pos) / min_spacing)
-                for _ in range(max(0, needed)):
-                    constraints.append("-1")
-        else:
-            # 列约束，检查 x 坐标
-            if max_pos < 1000:
-                # 需要在末尾补全，直到覆盖到游戏区域边缘
-                needed = int((1000 - max_pos) / min_spacing)
-                for _ in range(max(0, needed)):
-                    constraints.append("-1")
-
-    # 根据边界插入后的数量，重新计算 target_count
     current_count = len(constraints)
     target_count = None
     for tc in target_counts:
@@ -294,6 +273,25 @@ def _finalize_constraints(constraints, target_counts=[10, 15], positions=None, m
         constraints.append("-1")
 
     return constraints[:target_count]
+
+
+def _pad_to_boundary(constraints, positions, min_spacing, boundary_threshold):
+    """
+    根据边界阈值补全约束
+
+    参数:
+        constraints: 约束列表（会被修改）
+        positions: 位置列表
+        min_spacing: 最小间距
+        boundary_threshold: 边界阈值
+    """
+    if positions:
+        max_pos = max(positions)
+        if max_pos < boundary_threshold:
+            needed = int((boundary_threshold - max_pos) / min_spacing)
+            for _ in range(max(0, needed)):
+                constraints.append("-1")
+    return constraints
 
 
 def f_row(img, row_digits, col_max_y=None):
@@ -344,19 +342,18 @@ def f_row(img, row_digits, col_max_y=None):
         if first_row_y > expected_start_y + min_dy * 1.5:
             # 需要在开头补全缺失的行
             missing_count = int(round((first_row_y - expected_start_y) / min_dy))
-            for _ in range(max(0, missing_count)):
-                constraints_with_pos.insert(0, (expected_start_y, "-1"))
+            # 使用列表拼接替代 insert(0, ...) 避免 O(n²)
+            missing = [(expected_start_y, "-1")] * max(0, missing_count)
+            constraints_with_pos = missing + constraints_with_pos
 
     # 补全中间缺失的行
     padded_constraints = _pad_constraints(constraints_with_pos, min_dy)
 
-    # 最终补齐到目标数量（10或15），传入位置信息进行边界验证
-    final_constraints = _finalize_constraints(
-        padded_constraints,
-        positions=y_positions,
-        min_spacing=min_dy,
-        is_row=True
-    )
+    # 行约束边界验证：最大的 y 必须大于 ROW_CONSTRAINT_MIN_Y
+    _pad_to_boundary(padded_constraints, y_positions, min_dy, ROW_CONSTRAINT_MIN_Y)
+
+    # 最终补齐到目标数量（10或15）
+    final_constraints = _finalize_constraints(padded_constraints)
 
     return '\n'.join(final_constraints)
 
@@ -415,19 +412,18 @@ def f_col(img, col_digits, row_max_x=None):
         if first_col_x > expected_start_x + min_dx * 1.5:
             # 需要在开头补全缺失的列
             missing_count = int(round((first_col_x - expected_start_x) / min_dx))
-            for _ in range(max(0, missing_count)):
-                constraints_with_pos.insert(0, (expected_start_x, "-1"))
+            # 使用列表拼接替代 insert(0, ...) 避免 O(n²)
+            missing = [(expected_start_x, "-1")] * max(0, missing_count)
+            constraints_with_pos = missing + constraints_with_pos
 
     # 补全中间缺失的列
     padded_constraints = _pad_constraints(constraints_with_pos, min_dx)
 
-    # 最终补齐到目标数量（10或15），传入位置信息进行边界验证
-    final_constraints = _finalize_constraints(
-        padded_constraints,
-        positions=x_positions,
-        min_spacing=min_dx,
-        is_row=False
-    )
+    # 列约束边界验证：最大的 x 必须大于 COL_CONSTRAINT_MIN_X
+    _pad_to_boundary(padded_constraints, x_positions, min_dx, COL_CONSTRAINT_MIN_X)
+
+    # 最终补齐到目标数量（10或15）
+    final_constraints = _finalize_constraints(padded_constraints)
 
     return '\n'.join(final_constraints)
 
@@ -478,8 +474,6 @@ def recognize_from_image(img_path, debug=False):
     # p2[0] = col_max_x + 50, p2[1] = row_max_y + 50
     row_max_x = p1[0] - 30
     col_max_y = p1[1] - 50
-    col_max_x = p2[0] - 50
-    row_max_y = p2[1] - 50
 
     # 并行执行行和列的OCR识别，提升约50%性能
     # 传递坐标信息用于行列补全
