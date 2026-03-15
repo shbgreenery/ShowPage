@@ -147,6 +147,14 @@ class PuzzleSolver:
 
         filtered = [r for r in results if r is not None]
 
+        # 如果过滤前后数量相同且不等于总点数，说明没有匹配的点，返回全部点
+        if len(filtered) == len(points_to_check) and len(filtered) != len(self.all_points):
+            self.log(
+                f'⚠️ 没有找到新的匹配点，恢复使用全部 {len(self.all_points)} 个点',
+                LogLevel.WARNING
+            )
+            return self.all_points
+
         self.log(
             f'✓ 颜色过滤完成！从 {len(points_to_check)} 个候选点中筛选出 {len(filtered)} 个有效点',
             LogLevel.SUCCESS
@@ -232,18 +240,18 @@ class PuzzleSolver:
         try:
             while True:
                 # 获取截图
-                if round_count % 2 == 0:
-                    screenshot = self.get_screenshot()
-                    if not screenshot:
-                        self.log('截图获取失败，停止求解', LogLevel.ERROR)
-                        break
+                # if round_count % 2 == 0:
+                screenshot = self.get_screenshot()
+                if not screenshot:
+                    self.log('截图获取失败，停止求解', LogLevel.ERROR)
+                    break
 
-                    self.filtered_points = self.filter_points_by_color(
-                        screenshot, candidate_points=self.filtered_points)
+                self.filtered_points = self.filter_points_by_color(
+                    screenshot, candidate_points=self.filtered_points)
 
-                    if not self.filtered_points:
-                        self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
-                        break
+                if not self.filtered_points:
+                    self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
+                    break
 
                 # 求解这一轮
                 if not self.solve_round():
