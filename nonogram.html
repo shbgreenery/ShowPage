@@ -1042,12 +1042,18 @@
             statusEl.className = 'device-connecting';
 
             try {
+                // 点击空白前先点击 (525, 2054)
+                await executeTap({ x: 525, y: 2054 });
+
                 const result = await executeTap(newEmptyCells);
 
                 // 标记成功点击的格子
                 newEmptyCells.forEach(cell => {
                     markCellClicked(cell.row, cell.col);
                 });
+
+                // 点击完所有空白后再点击 (525, 2054)
+                await executeTap({ x: 525, y: 2054 });
 
                 // 恢复状态
                 batchBtn.disabled = false;
