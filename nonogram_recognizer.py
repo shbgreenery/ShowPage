@@ -200,16 +200,26 @@ def _parallel_ocr(digit_regions, img):
 
 
 def _calculate_min_spacing(positions):
-    """计算位置列表中的最小间距"""
+    """计算位置列表中间距的中位数"""
     if len(positions) < 2:
         return 50  # 默认间距
     sorted_pos = sorted(positions)
-    min_spacing = float('inf')
+    spacings = []
     for i in range(1, len(sorted_pos)):
         spacing = sorted_pos[i] - sorted_pos[i-1]
         if spacing > 0:
-            min_spacing = min(min_spacing, spacing)
-    return min_spacing if min_spacing != float('inf') else 50
+            spacings.append(spacing)
+
+    if not spacings:
+        return 50
+
+    # 计算中位数
+    spacings.sort()
+    n = len(spacings)
+    if n % 2 == 1:
+        return spacings[n // 2]
+    else:
+        return (spacings[n // 2 - 1] + spacings[n // 2]) / 2
 
 
 def _pad_constraints(constraints, min_spacing, threshold_factor=1.5):
