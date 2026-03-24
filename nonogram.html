@@ -944,17 +944,6 @@
                 return;
             }
 
-            // 确认操作
-            const confirmMsg = skippedCount > 0
-                ? `准备批量点击 ${newFilledCells.length} 个填充格子（跳过 ${skippedCount} 个已点击），确定继续吗？\n\n提示：按回车键确认，按ESC键取消`
-                : `准备批量点击 ${newFilledCells.length} 个填充格子，确定继续吗？\n\n提示：按回车键确认，按ESC键取消`;
-
-            // 创建自定义确认框以支持回车键
-            const userChoice = await asyncConfirm(confirmMsg);
-            if (!userChoice) {
-                return;
-            }
-
             // 禁用按钮
             batchBtn.disabled = true;
             batchBtn.textContent = '点击中...';
@@ -1026,17 +1015,6 @@
 
             if (newEmptyCells.length === 0) {
                 alert(skippedCount > 0 ? `所有空格子都已点击！` : '没有空格子！');
-                return;
-            }
-
-            // 确认操作
-            const confirmMsg = skippedCount > 0
-                ? `准备批量点击 ${newEmptyCells.length} 个空格子（跳过 ${skippedCount} 个已点击），确定继续吗？\n\n提示：按回车键确认，按ESC键取消`
-                : `准备批量点击 ${newEmptyCells.length} 个空格子，确定继续吗？\n\n提示：按回车键确认，按ESC键取消`;
-
-            // 创建自定义确认框以支持回车键
-            const userChoice = await asyncConfirm(confirmMsg);
-            if (!userChoice) {
                 return;
             }
 
