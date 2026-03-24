@@ -724,6 +724,9 @@
                 <div class="control-row">
                     <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">AI识别并求解</button>
                 </div>
+                <div class="control-row">
+                    <button class="btn-warning" onclick="toggleSpeedRacing()" id="speed-racing-btn">🏁 竞速开始</button>
+                </div>
             </div>
 
             <!-- 服务器配置 -->
@@ -851,6 +854,9 @@
 
         // 点击记录管理
         let clickedCells = new Set(); // 存储 "row,col" 格式的字符串
+
+        // 竞速模式状态
+        let isSpeedRacing = false;
 
         // 计算格子中心坐标（使用累积方式，避免累积误差）
         function calculateCellCenter(row, col) {
@@ -1134,6 +1140,7 @@
                 console.error('AI 分析失败:', error);
                 statusEl.textContent = `✗ 分析失败: ${error.message}`;
                 statusEl.className = 'device-disconnected';
+                throw error; // 重新抛出错误，让调用者能够捕获
             } finally {
                 analyzeBtn.disabled = false;
                 analyzeBtn.textContent = 'AI识别约束';
@@ -1141,7 +1148,7 @@
         }
 
         // 主求解函数
-        function solve() {
+        function solve(skipModal = false) {
             const statusEl = document.getElementById('status');
             const resultArea = document.getElementById('result-area');
             resultArea.classList.remove('show');
@@ -1153,19 +1160,22 @@
             const colsInput = parseConstraintsText(document.getElementById('col-constraints').value);
 
             if (rowsInput.length === 0 || colsInput.length === 0) {
-                statusEl.textContent = "错误：请输入有效的行和列约束。";
-                return;
+                const error = new Error("请输入有效的行和列约束");
+                statusEl.textContent = `错误：${error.message}`;
+                throw error;
             }
 
             // 限制最多20行
             if (rowsInput.length > 20 || colsInput.length > 20) {
-                statusEl.textContent = "错误：行数和列数不能超过20。";
-                return;
+                const error = new Error("行数和列数不能超过20");
+                statusEl.textContent = `错误：${error.message}`;
+                throw error;
             }
 
             if (rowsInput.length !== colsInput.length) {
-                statusEl.textContent = "错误：行数和列数必须相等。";
-                return;
+                const error = new Error("行数和列数必须相等");
+                statusEl.textContent = `错误：${error.message}`;
+                throw error;
             }
 
             const n = rowsInput.length;
@@ -1185,14 +1195,40 @@
 
                 // 求解成功后决定游戏区域的配置方式
                 if (!gameSession.hasConfigured) {
-                    // 无论是否有 AI 识别区域，都弹出截图选择框（AI 区域将作为默认值预填充）
-                    console.log('首次配置截图区域', gameSession.aiRecognizedArea ? '(AI区域已识别)' : '');
-                    openScreenshotModal();
+                    if (skipModal) {
+                        // 竞速模式:直接使用AI返回的配置或已有配置,不弹窗
+                        console.log('竞速模式:跳过截图选择弹窗');
+                        if (gameSession.aiRecognizedArea) {
+                            // 使用AI识别的区域更新ADB配置
+                            const area = gameSession.aiRecognizedArea;
+                            adbConfig.startX = area.startX;
+                            adbConfig.startY = area.startY;
+                            adbConfig.gridWidth = area.gridWidth;
+                            adbConfig.gridHeight = area.gridHeight;
+                            gameSession.hasConfigured = true;
+                            console.log('已使用AI识别区域配置ADB:', area);
+                        } else {
+                            // 尝试加载记忆的位置
+                            const memory = loadSelectionMemory();
+                            if (memory.colMemory || memory.rowMemory) {
+                                console.log('使用记忆位置配置');
+                                // 这里需要从记忆恢复配置
+                                const startX = loadStartXMemory(currentGrid[0].length, Math.max(...parseConstraints().rowMaxConstraintLength));
+                                adbConfig.startX = startX;
+                                gameSession.hasConfigured = true;
+                            }
+                        }
+                    } else {
+                        // 正常模式:弹出截图选择框
+                        console.log('首次配置截图区域', gameSession.aiRecognizedArea ? '(AI区域已识别)' : '');
+                        openScreenshotModal();
+                    }
                 } else {
                     console.log('使用已配置的截图区域，会话ID:', gameSession.id);
                 }
             } catch (e) {
-                statusEl.textContent = e.message;
+                statusEl.textContent = `求解错误: ${e.message}`;
+                throw e; // 重新抛出错误
             }
         }
 
@@ -2187,6 +2223,216 @@
                     startY: config.endY - (config.endX - startX)
                 }
             };
+        }
+
+        // 切换竞速模式
+        async function toggleSpeedRacing() {
+            const speedBtn = document.getElementById('speed-racing-btn');
+            const statusEl = document.getElementById('status');
+
+            if (isSpeedRacing) {
+                // 停止竞速模式
+                isSpeedRacing = false;
+                speedBtn.textContent = '🏁 竞速开始';
+                speedBtn.style.backgroundColor = 'var(--warning)';
+                statusEl.textContent = '竞速模式已停止';
+                statusEl.className = 'device-disconnected';
+                console.log('竞速模式已停止');
+            } else {
+                // 启动竞速模式
+                isSpeedRacing = true;
+                speedBtn.textContent = '⏹ 停止竞速';
+                speedBtn.style.backgroundColor = 'var(--danger)';
+                statusEl.textContent = '竞速模式运行中...';
+                statusEl.className = 'device-connecting';
+                console.log('竞速模式已启动');
+
+                // 开始无限循环
+                await runSpeedRacingLoop();
+            }
+        }
+
+        // 竞速循环主函数
+        async function runSpeedRacingLoop() {
+            const statusEl = document.getElementById('status');
+
+            while (isSpeedRacing) {
+                try {
+                    // 步骤1: 清空
+                    if (!isSpeedRacing) break;
+                    statusEl.textContent = '竞速中: 步骤1/5 - 清空...';
+                    clearConstraints();
+                    await sleep(300);
+
+                    // 步骤2: AI识别约束
+                    if (!isSpeedRacing) break;
+                    statusEl.textContent = '竞速中: 步骤2/5 - AI识别约束...';
+                    try {
+                        await analyzeFromScreenshot();
+                    } catch (error) {
+                        throw new Error(`AI识别失败: ${error.message}`);
+                    }
+                    await sleep(300);
+
+                    // 检查AI识别是否成功
+                    const rowConstraints = document.getElementById('row-constraints').value;
+                    const colConstraints = document.getElementById('col-constraints').value;
+                    if (!rowConstraints.trim() || !colConstraints.trim()) {
+                        throw new Error('AI识别返回空约束，无法求解');
+                    }
+
+                    // 步骤3: 求解（不弹窗）
+                    if (!isSpeedRacing) break;
+                    statusEl.textContent = '竞速中: 步骤3/5 - 求解...';
+                    try {
+                        solve(true); // skipModal = true
+                    } catch (error) {
+                        throw new Error(`求解失败: ${error.message}`);
+                    }
+
+                    // 检查求解是否成功
+                    if (!currentGrid) {
+                        throw new Error('求解未生成网格数据');
+                    }
+                    await sleep(300);
+
+                    // 步骤4: 点击第一行填充的单元格
+                    if (!isSpeedRacing) break;
+                    if (currentGrid) {
+                        statusEl.textContent = '竞速中: 步骤4/5 - 点击第一行填充格子...';
+                        try {
+                            await tapFirstRowFilled();
+                        } catch (error) {
+                            throw new Error(`点击失败: ${error.message}`);
+                        }
+                    }
+
+                    // 步骤5: 休息2秒
+                    if (!isSpeedRacing) break;
+                    statusEl.textContent = '竞速中: 步骤5/5 - 休息一下...';
+                    await sleep(500);
+
+                    // 一轮完成，更新状态
+                    if (isSpeedRacing) {
+                        statusEl.textContent = '✓ 一轮完成，准备下一轮...';
+                        statusEl.className = 'device-connected';
+                    }
+
+                } catch (error) {
+                    console.error('竞速循环出错:', error);
+
+                    // 立即停止竞速模式
+                    isSpeedRacing = false;
+                    const speedBtn = document.getElementById('speed-racing-btn');
+                    speedBtn.textContent = '🏁 竞速开始';
+                    speedBtn.style.backgroundColor = 'var(--warning)';
+
+                    statusEl.textContent = `✗ 竞速已停止: ${error.message}`;
+                    statusEl.className = 'device-disconnected';
+                    break; // 跳出循环
+                }
+            }
+        }
+
+        // 点击第一个有填充格子且没有未知格子的行或列的所有填充格子
+        async function tapFirstRowFilled() {
+            if (!currentGrid) {
+                throw new Error('没有可用的网格数据');
+            }
+
+            // 第一步：检查行
+            for (let r = 0; r < currentGrid.length; r++) {
+                const row = currentGrid[r];
+                const filledCells = []; // 存储该行所有填充格子的坐标
+                let hasUnknown = false; // 标记该行是否有未知格子
+
+                // 遍历该行所有格子
+                for (let c = 0; c < row.length; c++) {
+                    if (row[c] === FILLED) {
+                        const coords = calculateCellCenter(r, c);
+                        filledCells.push({
+                            x: coords.x,
+                            y: coords.y,
+                            row: r,
+                            col: c
+                        });
+                    } else if (row[c] === UNKNOWN) {
+                        hasUnknown = true; // 发现未知格子
+                    }
+                }
+
+                // 如果该行有未知格子，跳过该行，继续查找下一行
+                if (hasUnknown) {
+                    console.log(`第${r + 1}行有未知格子，跳过该行`);
+                    continue;
+                }
+
+                // 如果该行有填充格子且没有未知格子，批量点击它们
+                if (filledCells.length > 0) {
+                    console.log(`第${r + 1}行有${filledCells.length}个填充格子且无未知格子，准备批量点击`);
+
+                    try {
+                        const result = await executeTap(filledCells);
+                        console.log(`成功点击第${r + 1}行的${result.success}个填充格子`);
+                        return; // 成功点击后返回
+                    } catch (error) {
+                        console.error(`点击第${r + 1}行填充格子失败:`, error);
+                        throw error;
+                    }
+                }
+            }
+
+            console.log('所有行都有未知格子，开始检查列...');
+
+            // 第二步：所有行都不符合条件，检查列
+            const cols = currentGrid[0].length; // 列数
+            for (let c = 0; c < cols; c++) {
+                const filledCells = []; // 存储该列所有填充格子的坐标
+                let hasUnknown = false; // 标记该列是否有未知格子
+
+                // 遍历该列所有格子
+                for (let r = 0; r < currentGrid.length; r++) {
+                    if (currentGrid[r][c] === FILLED) {
+                        const coords = calculateCellCenter(r, c);
+                        filledCells.push({
+                            x: coords.x,
+                            y: coords.y,
+                            row: r,
+                            col: c
+                        });
+                    } else if (currentGrid[r][c] === UNKNOWN) {
+                        hasUnknown = true; // 发现未知格子
+                    }
+                }
+
+                // 如果该列有未知格子，跳过该列，继续查找下一列
+                if (hasUnknown) {
+                    console.log(`第${c + 1}列有未知格子，跳过该列`);
+                    continue;
+                }
+
+                // 如果该列有填充格子且没有未知格子，批量点击它们
+                if (filledCells.length > 0) {
+                    console.log(`第${c + 1}列有${filledCells.length}个填充格子且无未知格子，准备批量点击`);
+
+                    try {
+                        const result = await executeTap(filledCells);
+                        console.log(`成功点击第${c + 1}列的${result.success}个填充格子`);
+                        return; // 成功点击后返回
+                    } catch (error) {
+                        console.error(`点击第${c + 1}列填充格子失败:`, error);
+                        throw error;
+                    }
+                }
+            }
+
+            // 所有行和列都不符合条件
+            throw new Error('网格中没有完全确定的填充格子行或列');
+        }
+
+        // 辅助函数: sleep
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
 
         // 页面加载完成后添加事件监听器
