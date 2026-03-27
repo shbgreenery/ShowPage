@@ -26,6 +26,8 @@
             --secondary-hover: #475569;
             --cell-size: 28px;
             --filled-color: #1e293b;
+            --radius-md: 8px;
+            --radius-lg: 12px;
         }
 
         * {
@@ -33,301 +35,139 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Geist Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--bg-primary);
             color: var(--text-primary);
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px 20px;
+            padding: 40px 20px;
             margin: 0;
             min-height: 100vh;
-        }
-
-        /* 高度受限的屏幕优化 */
-        @media (max-height: 700px) {
-            body {
-                padding: 15px 20px;
-                min-height: auto;
-            }
-
-            h1 {
-                margin-bottom: 15px;
-            }
-
-            .container {
-                gap: 16px;
-            }
-
-            .input-section {
-                padding: 20px;
-            }
-
-            .input-section textarea {
-                height: 140px;
-            }
-
-            #result-area {
-                min-height: 350px;
-                padding: 20px;
-            }
-        }
-
-        /* 极小高度屏幕优化 */
-        @media (max-height: 600px) {
-            body {
-                padding: 10px 20px;
-            }
-
-            h1 {
-                margin-bottom: 10px;
-            }
-
-            .container {
-                gap: 12px;
-            }
-
-            .input-section {
-                padding: 16px;
-            }
-
-            .input-section textarea {
-                height: 120px;
-            }
-
-            .controls {
-                margin-top: 12px;
-            }
-
-            #result-area {
-                min-height: 300px;
-                padding: 16px;
-            }
-
-            .cell {
-                width: 24px;
-                height: 24px;
-            }
-
-            :root {
-                --cell-size: 24px;
-            }
-        }
-
-        h1 {
-            margin-bottom: 20px;
-            font-size: 22px;
-            font-weight: 600;
-            color: var(--text-primary);
-            letter-spacing: -0.5px;
-        }
-
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            body {
-                padding: 15px 10px;
-            }
-
-            h1 {
-                font-size: 20px;
-                margin-bottom: 16px;
-            }
-
-            .container {
-                flex-direction: column;
-                align-items: center;
-                gap: 16px;
-            }
-
-            .input-section {
-                width: 100%;
-                max-width: 350px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            h1 {
-                font-size: 18px;
-                margin-bottom: 12px;
-            }
-        }
-
-        /* 小屏幕且高度受限的复合优化 */
-        @media (max-width: 768px) and (max-height: 700px) {
-            body {
-                padding: 10px;
-            }
-
-            h1 {
-                margin-bottom: 12px;
-            }
-
-            .container {
-                gap: 12px;
-            }
-
-            .input-section {
-                padding: 16px;
-            }
-
-            .input-section textarea {
-                height: 120px;
-            }
-
-            #result-area {
-                min-height: 280px;
-                padding: 16px;
-            }
-        }
-
-        /* 极小屏幕且高度受限的进一步优化 */
-        @media (max-width: 480px) and (max-height: 600px) {
-            body {
-                padding: 8px;
-            }
-
-            h1 {
-                margin-bottom: 8px;
-                font-size: 16px;
-            }
-
-            .container {
-                gap: 8px;
-            }
-
-            .input-section {
-                padding: 12px;
-            }
-
-            .input-section textarea {
-                height: 100px;
-            }
-
-            .controls {
-                margin-top: 8px;
-                gap: 6px;
-            }
-
-            button {
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-
-            #result-area {
-                min-height: 250px;
-                padding: 12px;
-            }
-
-            .cell {
-                width: 22px;
-                height: 22px;
-                font-size: 12px;
-            }
-
-            :root {
-                --cell-size: 22px;
-            }
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
             display: flex;
-            gap: 24px;
+            gap: 32px;
             justify-content: center;
-            max-width: 1400px;
+            max-width: 1200px;
             width: 100%;
             align-items: flex-start;
         }
 
+        /* 左侧：输入区域 */
         .input-section {
             background: var(--bg-secondary);
             padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
-            width: 280px;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 300px;
             display: flex;
             flex-direction: column;
             border: 1px solid var(--border-color);
+            position: sticky;
+            top: 40px;
         }
 
         .input-section textarea {
             width: 100%;
-            height: 180px;
+            height: 100px;
             padding: 12px;
-            box-sizing: border-box;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             resize: vertical;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+            font-family: 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 13px;
             line-height: 1.5;
-            background-color: var(--bg-tertiary);
+            background-color: #fafafa;
             color: var(--text-primary);
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: all 0.2s ease;
+            margin-bottom: 16px;
         }
 
         .input-section textarea:focus {
             outline: none;
             border-color: var(--primary);
+            background-color: white;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         label {
-            font-weight: 500;
-            font-size: 14px;
+            font-weight: 600;
+            font-size: 13px;
             margin-bottom: 8px;
             display: block;
-            color: var(--text-primary);
-        }
-
-        .input-section>p {
-            font-size: 13px;
             color: var(--text-secondary);
-            line-height: 1.5;
-            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
 
-        .controls {
+        /* 右侧：结果与操作 */
+        .result-container {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            margin-top: 16px;
+            gap: 24px;
+            flex: 1;
         }
 
-        .control-row {
+        .action-buttons {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
             display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
         }
 
+        .button-group.single-column {
+            grid-template-columns: 1fr;
+        }
+
+        .button-group button {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .button-group button span {
+            font-size: 14px;
+        }
+
         button {
-            flex: 1;
-            padding: 9px 14px;
-            background-color: var(--bg-secondary);
+            padding: 10px 16px;
+            background-color: white;
             color: var(--text-primary);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: var(--radius-md);
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
-            transition: all 0.15s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            min-width: 0;
+            white-space: nowrap;
         }
 
         button:hover:not(:disabled) {
             border-color: var(--primary);
             color: var(--primary);
+            background-color: #eff6ff;
+            transform: translateY(-1px);
         }
 
         button:active:not(:disabled) {
-            transform: translateY(1px);
-        }
-
-        button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
+            transform: translateY(0px);
         }
 
         button.btn-primary {
@@ -338,29 +178,29 @@
 
         button.btn-primary:hover:not(:disabled) {
             background-color: var(--primary-hover);
-            border-color: var(--primary-hover);
             color: white;
         }
 
         button.btn-warning {
-            background-color: rgba(245, 158, 11, 0.08);
+            background-color: #fffbeb;
             color: #d97706;
-            border-color: #f59e0b;
+            border-color: #fde68a;
         }
 
         button.btn-warning:hover:not(:disabled) {
-            background-color: rgba(245, 158, 11, 0.15);
+            background-color: #fef3c7;
+            border-color: #f59e0b;
         }
 
         #result-area {
             background: var(--bg-secondary);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             overflow: auto;
             display: none;
-            min-height: 400px;
             border: 1px solid var(--border-color);
             padding: 24px;
+            min-height: 200px;
         }
 
         #result-area.show {
@@ -369,114 +209,44 @@
             align-items: center;
         }
 
-        /* 网格布局 */
+        /* 网格样式优化 */
         .nono-grid {
             display: grid;
-            background-color: var(--bg-secondary);
+            background-color: var(--border-color);
+            padding: 2px;
+            gap: 1px;
+            border-radius: 4px;
         }
 
         .cell {
             width: var(--cell-size);
             height: var(--cell-size);
-            border: 1px solid var(--border-color);
-            box-sizing: border-box;
+            background-color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
-            background-color: var(--bg-secondary);
         }
 
-        /* 粗边框，每5格显示 */
-        .cell.border-right {
-            border-right: 2px solid var(--text-secondary);
-        }
+        .cell.filled { background-color: var(--filled-color); }
+        .cell.empty::after { content: "·"; color: #cbd5e1; font-size: 24px; }
+        .cell.unknown { background-color: #f8fafc; }
 
-        .cell.border-bottom {
-            border-bottom: 2px solid var(--text-secondary);
-        }
-
-        /* 状态样式 */
-        .cell.filled {
-            background-color: var(--filled-color);
-        }
-
-        .cell.empty {
-            color: var(--text-muted);
-        }
-
-        .cell.empty::after {
-            content: "×";
-            font-size: 20px;
-        }
-
-        .cell.unknown {
-            background-color: var(--bg-tertiary);
-            border: 1px dashed var(--text-muted);
-        }
-
-        .cell.unknown::after {
-            content: "?";
-            color: var(--text-secondary);
-            font-size: 16px;
-        }
-
-        /* 提示数字区域 */
-        .hint {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            color: var(--text-secondary);
-            background-color: var(--bg-tertiary);
-            padding: 4px;
-            white-space: pre-line;
-            text-align: center;
-            line-height: 1.3;
-            font-weight: 500;
-        }
-
-        .hint.col-hint {
-            flex-direction: column;
-            justify-content: flex-end;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--text-secondary);
-        }
-
-        .hint.row-hint {
-            justify-content: flex-end;
-            padding-right: 8px;
-            border-right: 2px solid var(--text-secondary);
-        }
-
-        .corner {
-            background-color: var(--bg-secondary);
-        }
-
+        /* 状态条优化 */
         .status-msg {
-            margin-top: 12px;
-            font-weight: 500;
-            text-align: center;
-            font-size: 14px;
-            padding: 8px;
-            border-radius: 6px;
+            margin-top: 16px;
+            font-size: 12px;
+            padding: 10px;
+            border-radius: var(--radius-md);
+            background: #f1f5f9;
+            color: var(--text-secondary);
+            border-left: 4px solid var(--text-muted);
         }
 
-        /* 格子点击样式 */
-        .cell.clickable {
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
+        .device-connected { border-left-color: var(--success); color: var(--success); background: #ecfdf5; }
+        .device-disconnected { border-left-color: var(--danger); color: var(--danger); background: #fef2f2; }
+        .device-connecting { border-left-color: var(--warning); color: var(--warning); background: #fffbeb; }
 
-        .cell.clickable:hover {
-            background-color: rgba(59, 130, 246, 0.2) !important;
-            transform: scale(1.05);
-        }
-
-        .cell.clickable:active {
-            transform: scale(0.95);
-        }
-
+        
         /* 设备连接按钮 */
         #batch-tap-btn {
             background-color: var(--warning);
@@ -696,57 +466,85 @@
 <body>
 
     <div class="container">
+        <!-- 左侧：约束输入区域 -->
         <div class="input-section">
-            <p style="font-size: 0.9em; color: #666;">每行代表网格的一行/列。数字间用空格分隔。使用 '?' 表示不确定的约束。</p>
+            <div style="margin-bottom: 20px;">
+                <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: var(--text-primary);">约束输入</h2>
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; line-height: 1.5;">每行数字代表一行/列，空格分隔。<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">?</code> 表示不确定</p>
+            </div>
 
-            <label for="row-constraints">行约束 (Row Hints):</label>
-            <textarea id="row-constraints" placeholder="例如：&#10;2 1&#10;5&#10;?" maxlength="400"></textarea>
+            <label for="row-constraints">行约束</label>
+            <textarea id="row-constraints" placeholder="例如：2 1&#10;5&#10;?" maxlength="400"></textarea>
 
-            <label for="col-constraints">列约束 (Column Hints):</label>
-            <textarea id="col-constraints" placeholder="例如：&#10;1 1&#10;?&#10;2 2" maxlength="400"></textarea>
+            <label for="col-constraints">列约束</label>
+            <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400"></textarea>
 
-            <div class="controls">
-                <div class="control-row">
-                    <button class="btn-primary" onclick="solve()">求解</button>
-                    <button onclick="loadSample()">示例</button>
-                    <button onclick="clearConstraints()">清空</button>
-                </div>
-                <div class="control-row">
-                    <button class="btn-warning" onclick="batchTapAllFilled()" id="batch-tap-btn">点击填充</button>
-                    <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">点击空格</button>
-                </div>
-                <div class="control-row">
-                    <button onclick="analyzeFromScreenshot()" id="analyze-btn">AI识别约束</button>
-                </div>
-                <div class="control-row">
-                    <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个填充</button>
-                </div>
-                <div class="control-row">
-                    <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">AI识别并求解</button>
-                </div>
-                <div class="control-row">
-                    <button class="btn-warning" onclick="toggleSpeedRacing()" id="speed-racing-btn">🏁 竞速开始</button>
-                </div>
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button class="btn-primary" onclick="solve()" style="flex: 2;">求解</button>
+                <button onclick="loadSample()" style="flex: 1;">示例</button>
+                <button onclick="clearConstraints()" style="flex: 1;">清空</button>
             </div>
 
             <!-- 服务器配置 -->
-            <div
-                style="margin-top: 12px; padding: 10px 12px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
-                <label style="font-size: 12px; font-weight: 500; margin-bottom: 6px; display: block;">代理服务器地址</label>
-                <input type="text" id="proxy-url" value="http://localhost:8085" placeholder="http://localhost:8085"
-                    onchange="saveConfig()"
-                    style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary);">
-            </div>
+            <details style="margin-top: 24px; background: #fafafa; border-radius: 8px; padding: 12px; border: 1px solid var(--border-color);">
+                <summary style="cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-secondary); outline: none;">⚙️ 高级设置</summary>
+                <div style="margin-top: 12px;">
+                    <label style="font-size: 11px;">代理服务器地址</label>
+                    <input type="text" id="proxy-url" value="http://localhost:8085"
+                        onchange="saveConfig()"
+                        style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; margin-top: 4px;">
+                </div>
+            </details>
 
             <div id="status" class="status-msg"></div>
         </div>
 
-        <div id="result-area"
-            style="flex: 1; min-width: 300px; display: flex; justify-content: center; align-items: flex-start;">
-            <!-- 网格将在这里生成 -->
-            <div
-                style="display: flex; justify-content: center; align-items: center; height: 100%; color: #999; font-style: italic;">
-                结果将显示在这里</div>
+        <!-- 右侧：操作区和结果区 -->
+        <div class="result-container">
+            <!-- 操作按钮区域 -->
+            <div class="action-buttons">
+                <div>
+                    <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-primary);">快捷操作</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">基于求解结果自动执行点击</p>
+                </div>
+
+                <!-- 主要操作 -->
+                <div class="button-group">
+                    <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">
+                        <span>⚡</span> 识别求解
+                    </button>
+                    <button onclick="analyzeFromScreenshot()" id="analyze-btn">
+                        <span>🔍</span> AI识别
+                    </button>
+                    <button onclick="tapNextFilled()" id="tap-next-filled-btn">
+                        <span>→</span> 下一个
+                    </button>
+                </div>
+
+                <!-- 批量操作 -->
+                <div class="button-group">
+                    <button class="btn-warning" onclick="batchTapAllFilled()" id="batch-tap-btn">
+                        <span>✨</span> 填充
+                    </button>
+                    <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">
+                        <span>○</span> 空格
+                    </button>
+                    <button class="btn-warning" onclick="toggleSpeedRacing()" id="speed-racing-btn">
+                        <span>🏁</span> 竞速
+                    </button>
+                </div>
+            </div>
+
+            <!-- 结果显示区域 -->
+            <div id="result-area">
+                <!-- 网格将在这里生成 -->
+                <div style="display: flex; justify-content: center; align-items: center; height: 200px; color: #94a3b8; font-size: 13px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.3;">📊</div>
+                        <div>求解结果将显示在这里</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1433,7 +1231,7 @@
                 // 单元格
                 for (let c = 0; c < cols; c++) {
                     const cell = document.createElement('div');
-                    cell.className = 'cell clickable';
+                    cell.className = 'cell';
                     const val = grid[r][c];
 
                     if (val === FILLED) cell.classList.add('filled');
@@ -1443,11 +1241,6 @@
                     // 粗边框
                     if ((c + 1) % 5 === 0 && c !== cols - 1) cell.classList.add('border-right');
                     if ((r + 1) % 5 === 0 && r !== rows - 1) cell.classList.add('border-bottom');
-
-                    // 添加点击事件
-                    cell.onclick = function () {
-                        handleCellClick(r, c, val);
-                    };
 
                     gridEl.appendChild(cell);
                 }
@@ -1564,37 +1357,7 @@
             }, '点击中...');
         }
 
-        // 处理格子点击
-        async function handleCellClick(row, col, value) {
-            // 检查是否已点击
-            if (isCellClicked(row, col)) {
-                console.log(`格子 (${row + 1}, ${col + 1}) 已点击，跳过`);
-                const statusEl = document.getElementById('status');
-                setStatus(`格子 (${row + 1}, ${col + 1}) 已点击`, 'connected');
-                return;
-            }
-
-            // 计算屏幕坐标
-            const coords = calculateCellCenter(row, col);
-
-            try {
-                const statusEl = document.getElementById('status');
-                setStatus(`正在点击格子 (${row + 1}, ${col + 1})...`, 'connecting');
-
-                await executeTap(coords.x, coords.y);
-
-                // 标记为已点击
-                markCellClicked(row, col);
-
-                setStatus(`✓ 已点击格子 (${row + 1}, ${col + 1})`, 'connected');
-
-            } catch (error) {
-                console.error('点击失败:', error);
-                const statusEl = document.getElementById('status');
-                setStatus(`✗ 点击失败: ${error.message}`, 'disconnected');
-            }
-        }
-
+        
         
         // ========== 截图选择功能相关 ==========
 
