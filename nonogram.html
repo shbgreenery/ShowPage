@@ -24,8 +24,10 @@
             --warning-hover: #d97706;
             --secondary: #64748b;
             --secondary-hover: #475569;
-            --cell-size: 28px;
+            --cell-size: 14px;
             --filled-color: #1e293b;
+            --empty-color: #e2e8f0;
+            --unknown-color: #fef3c7;
             --radius-md: 8px;
             --radius-lg: 12px;
         }
@@ -228,8 +230,33 @@
         }
 
         .cell.filled { background-color: var(--filled-color); }
-        .cell.empty::after { content: "·"; color: #cbd5e1; font-size: 24px; }
-        .cell.unknown { background-color: #f8fafc; }
+        .cell.empty { background-color: var(--empty-color); }
+        .cell.empty::after { content: "×"; color: #94a3b8; font-size: 12px; font-weight: bold; }
+        .cell.unknown { background-color: var(--unknown-color); }
+
+        .hint {
+            font-size: 9px;
+            line-height: 1.1;
+            color: var(--text-secondary);
+        }
+
+        .col-hint {
+            text-align: center;
+            padding: 1px;
+            min-width: var(--cell-size);
+        }
+
+        .row-hint {
+            text-align: right;
+            padding: 1px 3px 1px 0;
+            white-space: nowrap;
+            min-height: var(--cell-size);
+        }
+
+        .corner {
+            width: var(--cell-size);
+            height: var(--cell-size);
+        }
 
         /* 状态条优化 */
         .status-msg {
