@@ -147,13 +147,27 @@ class PuzzleSolver:
 
         filtered = [r for r in results if r is not None]
 
-        # 如果过滤前后数量相同且不等于总点数，说明没有匹配的点，返回全部点
+        # 如果过滤前后数量相同，说明候选点没有匹配的点
         if len(filtered) == len(points_to_check) and len(filtered) != len(self.all_points):
+            with ThreadPoolExecutor(max_workers=self.thread_pool_size) as executor:
+                all_results = list(executor.map(
+                    lambda p: self._check_single_point(pixels, p),
+                    self.all_points
+                ))
+            all_filtered = [r for r in all_results if r is not None]
+
+            if len(all_filtered) == len(points_to_check):
+                self.log(
+                    f'⚠️ 全部点过滤仍无效，直接返回全部 {len(self.all_points)} 个点',
+                    LogLevel.WARNING
+                )
+                return self.all_points
+
             self.log(
-                f'⚠️ 没有找到新的匹配点，恢复使用全部 {len(self.all_points)} 个点',
-                LogLevel.WARNING
+                f'✓ 颜色过滤完成！从 {len(self.all_points)} 个全部点中筛选出 {len(all_filtered)} 个有效点',
+                LogLevel.SUCCESS
             )
-            return self.all_points
+            return all_filtered
 
         self.log(
             f'✓ 颜色过滤完成！从 {len(points_to_check)} 个候选点中筛选出 {len(filtered)} 个有效点',
