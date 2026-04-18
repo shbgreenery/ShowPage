@@ -27,3 +27,4 @@ test_*.py
 *.txt
 .omc
 .claude
+.gemini

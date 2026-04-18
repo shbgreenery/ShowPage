@@ -229,10 +229,24 @@
             justify-content: center;
         }
 
-        .cell.filled { background-color: var(--filled-color); }
-        .cell.empty { background-color: var(--empty-color); }
-        .cell.empty::after { content: "×"; color: #94a3b8; font-size: 12px; font-weight: bold; }
-        .cell.unknown { background-color: var(--unknown-color); }
+        .cell.filled {
+            background-color: var(--filled-color);
+        }
+
+        .cell.empty {
+            background-color: var(--empty-color);
+        }
+
+        .cell.empty::after {
+            content: "×";
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .cell.unknown {
+            background-color: var(--unknown-color);
+        }
 
         .hint {
             font-size: 9px;
@@ -269,11 +283,25 @@
             border-left: 4px solid var(--text-muted);
         }
 
-        .device-connected { border-left-color: var(--success); color: var(--success); background: #ecfdf5; }
-        .device-disconnected { border-left-color: var(--danger); color: var(--danger); background: #fef2f2; }
-        .device-connecting { border-left-color: var(--warning); color: var(--warning); background: #fffbeb; }
+        .device-connected {
+            border-left-color: var(--success);
+            color: var(--success);
+            background: #ecfdf5;
+        }
 
-        
+        .device-disconnected {
+            border-left-color: var(--danger);
+            color: var(--danger);
+            background: #fef2f2;
+        }
+
+        .device-connecting {
+            border-left-color: var(--warning);
+            color: var(--warning);
+            background: #fffbeb;
+        }
+
+
         /* 设备连接按钮 */
         #batch-tap-btn {
             background-color: var(--warning);
@@ -497,7 +525,10 @@
         <div class="input-section">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: var(--text-primary);">约束输入</h2>
-                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; line-height: 1.5;">每行数字代表一行/列，空格分隔。<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">?</code> 表示不确定</p>
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                    每行数字代表一行/列，空格分隔。<code
+                        style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">?</code>
+                    表示不确定</p>
             </div>
 
             <label for="row-constraints">行约束</label>
@@ -513,12 +544,14 @@
             </div>
 
             <!-- 服务器配置 -->
-            <details style="margin-top: 24px; background: #fafafa; border-radius: 8px; padding: 12px; border: 1px solid var(--border-color);">
-                <summary style="cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-secondary); outline: none;">⚙️ 高级设置</summary>
+            <details
+                style="margin-top: 24px; background: #fafafa; border-radius: 8px; padding: 12px; border: 1px solid var(--border-color);">
+                <summary
+                    style="cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-secondary); outline: none;">
+                    ⚙️ 高级设置</summary>
                 <div style="margin-top: 12px;">
                     <label style="font-size: 11px;">代理服务器地址</label>
-                    <input type="text" id="proxy-url" value="http://localhost:8085"
-                        onchange="saveConfig()"
+                    <input type="text" id="proxy-url" value="http://localhost:8085" onchange="saveConfig()"
                         style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; margin-top: 4px;">
                 </div>
             </details>
@@ -531,7 +564,8 @@
             <!-- 操作按钮区域 -->
             <div class="action-buttons">
                 <div>
-                    <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-primary);">快捷操作</h3>
+                    <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-primary);">快捷操作
+                    </h3>
                     <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">基于求解结果自动执行点击</p>
                 </div>
 
@@ -565,7 +599,8 @@
             <!-- 结果显示区域 -->
             <div id="result-area">
                 <!-- 网格将在这里生成 -->
-                <div style="display: flex; justify-content: center; align-items: center; height: 200px; color: #94a3b8; font-size: 13px;">
+                <div
+                    style="display: flex; justify-content: center; align-items: center; height: 200px; color: #94a3b8; font-size: 13px;">
                     <div style="text-align: center;">
                         <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.3;">📊</div>
                         <div>求解结果将显示在这里</div>
@@ -586,8 +621,8 @@
             const statusEl = document.getElementById('status');
             statusEl.textContent = message;
             statusEl.className = type === 'connecting' ? 'device-connecting'
-                              : type === 'connected' ? 'device-connected'
-                              : 'device-disconnected';
+                : type === 'connected' ? 'device-connected'
+                    : 'device-disconnected';
         }
 
         // 按钮状态管理工具函数
@@ -753,7 +788,7 @@
             return result;
         }
 
-        
+
         // 通用批量点击格子函数
         async function batchTapCells(config) {
             const {
@@ -1315,7 +1350,7 @@
             clickedCells.add(`${row},${col}`);
         }
 
-        
+
         // 自动完整流程：清空 -> AI识别 -> 求解
         async function autoFullProcess() {
             await withButtonLock('auto-full-btn', async () => {
@@ -1331,7 +1366,8 @@
 
                     // 3. 求解
                     setStatus('步骤 3/3: 求解...', 'connecting');
-                    solve(true);
+                    await solve(true);
+                    batchTapAllFilled();
 
                 } catch (error) {
                     console.error('自动流程失败:', error);
@@ -1384,8 +1420,8 @@
             }, '点击中...');
         }
 
-        
-        
+
+
         // ========== 截图选择功能相关 ==========
 
         // 截图选择状态
