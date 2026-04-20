@@ -303,14 +303,6 @@
 
 
         /* 设备连接按钮 */
-        #batch-tap-btn {
-            background-color: var(--warning);
-        }
-
-        #batch-tap-btn:hover:not(:disabled) {
-            background-color: var(--warning-hover);
-        }
-
         .device-connected {
             color: var(--success) !important;
             font-weight: 600;
@@ -538,9 +530,18 @@
             <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400"></textarea>
 
             <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button class="btn-primary" onclick="solve()" style="flex: 2;">求解</button>
-                <button onclick="loadSample()" style="flex: 1;">示例</button>
-                <button onclick="clearConstraints()" style="flex: 1;">清空</button>
+                <button class="btn-primary" onclick="solve()">求解</button>
+                <button onclick="loadSample()">示例</button>
+                <button onclick="toggleSpeedRacing()" id="speed-racing-btn">竞速</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button onclick="clearConstraints()">清空</button>
+                <button onclick="analyzeFromScreenshot()" id="analyze-btn">AI识别</button>
+                <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button onclick="batchTapAllFilled()" id="batch-tap-btn">填充</button>
+                <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">空格</button>
             </div>
 
             <!-- 服务器配置 -->
@@ -566,33 +567,12 @@
                 <div>
                     <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-primary);">快捷操作
                     </h3>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">基于求解结果自动执行点击</p>
                 </div>
 
                 <!-- 主要操作 -->
                 <div class="button-group">
-                    <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">
-                        <span>⚡</span> 识别求解
-                    </button>
-                    <button onclick="analyzeFromScreenshot()" id="analyze-btn">
-                        <span>🔍</span> AI识别
-                    </button>
-                    <button onclick="tapNextFilled()" id="tap-next-filled-btn">
-                        <span>→</span> 下一个
-                    </button>
-                </div>
-
-                <!-- 批量操作 -->
-                <div class="button-group">
-                    <button class="btn-warning" onclick="batchTapAllFilled()" id="batch-tap-btn">
-                        <span>✨</span> 填充
-                    </button>
-                    <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">
-                        <span>○</span> 空格
-                    </button>
-                    <button class="btn-warning" onclick="toggleSpeedRacing()" id="speed-racing-btn">
-                        <span>🏁</span> 竞速
-                    </button>
+                    <button class="btn-primary" onclick="autoFullProcess()" id="auto-full-btn">识别求解</button>
+                    <button onclick="solveBugCatcher()" id="solve-bugcatcher-btn">一键捉虫</button>
                 </div>
             </div>
 
@@ -2074,6 +2054,31 @@
         // 辅助函数: sleep
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // “田地捉虫”完整自动化流程
+        async function solveBugCatcher() {
+            await withButtonLock('solve-bugcatcher-btn', async () => {
+                setStatus('正在启动“田地捉虫”自动化流程...', 'connecting');
+                try {
+                    const response = await fetch(`${proxyUrl}/solve-bugcatcher`, {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || result.status !== 'ok') {
+                        throw new Error(result.message || '自动化流程执行失败');
+                    }
+
+                    setStatus(`✓ ${result.message} (虫子: ${result.solution_size}, 点击: ${result.taps_performed})`, 'connected');
+
+                } catch (error) {
+                    console.error('“田地捉虫”自动化失败:', error);
+                    setStatus(`✗ 自动化失败: ${error.message}`, 'disconnected');
+                }
+            }, '捉虫中...');
         }
 
         // 页面加载完成后添加事件监听器

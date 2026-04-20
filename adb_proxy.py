@@ -14,9 +14,15 @@ import base64
 import os
 import tempfile
 from datetime import datetime
+from pathlib import Path
 
 # 添加当前目录到 path 以便导入模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from bugcatcher_recognizer import recognize_bugs
+from bugcatcher_solver import solve_puzzle
+from bugcatcher_constants import JSONKeys
+
 
 
 # 常量定义
@@ -153,6 +159,80 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                     'status': Status.ERROR,
                     'message': str(e)
                 }, HttpCode.SERVER_ERROR)
+        elif self.path == '/solve-bugcatcher':
+            self.log_message("开始“田地捉虫”自动化流程")
+            temp_path = None
+            try:
+                # 1. 获取截图并保存到临时文件
+                image_base64 = self._capture_screenshot()
+                image_data = base64.b64decode(image_base64)
+
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_file.write(image_data)
+                    temp_path = tmp_file.name
+
+                self.log_message(f"截图已临时保存到 {temp_path}")
+
+                # 2. 图像识别 (不再保存JSON文件)
+                puzzle_data, _ = recognize_bugs(str(temp_path), output_path=None, debug=False)
+                if not puzzle_data:
+                    raise Exception("图像识别失败。")
+
+                self.log_message("图像识别成功")
+
+                # 3. 谜题求解
+                solution = solve_puzzle(puzzle_data)
+                if not solution:
+                    raise Exception("谜题求解失败。")
+
+                self.log_message(f"谜题求解成功，找到 {len(solution)} 个虫子。")
+
+                # 4. 点击非虫子单元格
+                solution_set = set(solution)
+                taps_to_perform = [
+                    {
+                        "x": cell[JSONKeys.X] + cell[JSONKeys.W] // 2,
+                        "y": cell[JSONKeys.Y] + cell[JSONKeys.H] // 2
+                    }
+                    for cell in puzzle_data[JSONKeys.CELLS]
+                    if (cell[JSONKeys.ROW], cell[JSONKeys.COL]) not in solution_set
+                ]
+
+                if taps_to_perform:
+                    self.log_message(f"准备点击 {len(taps_to_perform)} 个非虫子单元格")
+                    tap_commands = [f"input tap {tap['x']} {tap['y']}" for tap in taps_to_perform]
+                    shell_script = '\n'.join(tap_commands)
+
+                    result = subprocess.run(
+                        ['adb', 'shell', shell_script],
+                        capture_output=True,
+                        text=True,
+                        timeout=Config.DEFAULT_TIMEOUT
+                    )
+                    if result.returncode != 0:
+                        self.log_message(f"点击命令可能部分失败: {result.stderr.decode()}")
+
+                self.log_message("点击命令发送成功")
+
+                self.send_json_response({
+                    'status': Status.OK,
+                    'message': '“田地捉虫”自动化流程执行成功！',
+                    'solution_size': len(solution),
+                    'taps_performed': len(taps_to_perform)
+                })
+
+            except Exception as e:
+                import traceback
+                self.log_message(f"“田地捉虫”自动化流程失败: {str(e)}\n{traceback.format_exc()}")
+                self.send_json_response({
+                    'status': Status.ERROR,
+                    'message': str(e)
+                }, HttpCode.SERVER_ERROR)
+            finally:
+                # 清理临时截图文件
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    self.log_message(f"临时截图 {temp_path} 已删除")
         else:
             self.send_response(HttpCode.NOT_FOUND)
             self.end_headers()
@@ -302,6 +382,7 @@ def main():
     print(f"   GET  /devices           - 获取设备列表")
     print(f"   GET  /screenshot        - 获取设备截图")
     print(f"   GET  /analyze-nonogram  - 分析数织游戏约束")
+    print(f"   GET  /solve-bugcatcher  - 自动化“田地捉虫”流程")
     print(f"   POST /tap               - 执行点击操作")
     print(f"💡 按 Ctrl+C 停止服务器")
 
