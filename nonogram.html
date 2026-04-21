@@ -1875,15 +1875,13 @@
             if (isSpeedRacing) {
                 // 停止竞速模式
                 isSpeedRacing = false;
-                speedBtn.textContent = '🏁 竞速开始';
-                speedBtn.style.backgroundColor = 'var(--warning)';
+                speedBtn.textContent = '竞速';
                 setStatus('竞速模式已停止', 'disconnected');
                 console.log('竞速模式已停止');
             } else {
                 // 启动竞速模式
                 isSpeedRacing = true;
-                speedBtn.textContent = '⏹ 停止竞速';
-                speedBtn.style.backgroundColor = 'var(--danger)';
+                speedBtn.textContent = '停止';
                 setStatus('竞速模式运行中...', 'connecting');
                 console.log('竞速模式已启动');
 
@@ -1963,8 +1961,7 @@
                     // 立即停止竞速模式
                     isSpeedRacing = false;
                     const speedBtn = document.getElementById('speed-racing-btn');
-                    speedBtn.textContent = '🏁 竞速开始';
-                    speedBtn.style.backgroundColor = 'var(--warning)';
+                    speedBtn.textContent = '竞速';
 
                     setStatus(`✗ 竞速已停止: ${error.message}`, 'disconnected');
                     break; // 跳出循环
