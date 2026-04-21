@@ -780,7 +780,7 @@
             } = config;
 
             if (!currentGrid) {
-                alert(`点击${cellTypeName}前，请先求解数织！`);
+                setStatus(`点击${cellTypeName}前，请先求解数织！`, 'disconnected');
                 return;
             }
 
@@ -805,7 +805,7 @@
             const skippedCount = allCells.length - newCells.length;
 
             if (newCells.length === 0) {
-                alert(skippedCount > 0 ? `所有${cellTypeName}都已点击！` : `没有${cellTypeName}！`);
+                setStatus(skippedCount > 0 ? `所有${cellTypeName}都已点击！` : `没有${cellTypeName}！`, 'connected');
                 return;
             }
 
@@ -1359,7 +1359,7 @@
         // 点击下一个未点击的填充格子
         async function tapNextFilled() {
             if (!currentGrid) {
-                alert('点击下一个填充前，请先求解数织！');
+                setStatus('点击下一个填充前，请先求解数织！', 'disconnected');
                 return;
             }
 

@@ -7,8 +7,13 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from sklearn.cluster import KMeans
 import bisect
+import logging
 
 from bugcatcher_constants import JSONKeys
+from logger_config import setup_logger
+
+# 初始化日志记录器
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -160,11 +165,16 @@ def find_optimal_k(data, min_k, max_k):
     best_k = -1
     best_score = -1
 
+    unique_data_points = np.unique(data, axis=0)
+    if len(unique_data_points) <= 1:
+        return 1
+
     for k in range(min_k, max_k + 1):
-        if k >= len(np.unique(data, axis=0)): continue
+        if k >= len(unique_data_points): continue
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         labels = kmeans.fit_predict(data)
         score = silhouette_score(data, labels)
+        logger.debug(f"K-means with k={k}, silhouette score: {score:.4f}")
         if score > best_score:
             best_score = score
             best_k = k
@@ -176,6 +186,7 @@ def cluster_colors(colors, n_clusters=None):
     color_array = np.array(colors)
     if n_clusters is None:
         n_clusters = find_optimal_k(color_array, N_CLUSTERS_MIN, N_CLUSTERS_MAX)
+        logger.info(f"自动选择最佳 K值为: {n_clusters}")
 
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     labels = kmeans.fit_predict(color_array)
@@ -245,11 +256,10 @@ def recognize_bugs(image_path, output_path='result.json', clusters=None, debug=F
     img_path = Path(image_path)
     debug_dir = img_path.parent / "debug_bugcatcher" if debug else None
 
-    print(f"识别图片: {img_path}")
-    print("-" * 50)
+    logger.info(f"开始识别图像: {img_path}")
 
     cells, img = extract_grid_cells(img_path, debug_dir)
-    print(f"检测到 {len(cells)} 个有效格子")
+    logger.debug(f"检测到 {len(cells)} 个有效格子")
 
     colors = sample_all_colors_parallel(img, cells)
 
@@ -258,12 +268,13 @@ def recognize_bugs(image_path, output_path='result.json', clusters=None, debug=F
     unique_x = group_coordinates(x_coords, tolerance=30)
     unique_y = group_coordinates(y_coords, tolerance=30)
 
-    num_clusters = clusters if clusters is not None else len(unique_y)
-    if clusters is None:
-        print(f"根据格子几何位置分析，推测出有 {num_clusters} 种颜色区域。")
+    num_clusters = clusters
+    if num_clusters is None:
+        num_clusters = len(unique_y)
+        logger.debug(f"根据格子几何位置分析，推测出有 {num_clusters} 种颜色区域。")
 
     labels, centers = cluster_colors(colors, num_clusters)
-    print(f"识别出 {len(centers)} 种主要颜色")
+    logger.debug(f"识别出 {len(centers)} 种主要颜色")
 
     matrix, rows, cols, annotated_cells = build_color_matrix(cells, labels, unique_x, unique_y)
     color_map = {str(i): {"rgb": [int(v) for v in c], "count": int(np.sum(labels == i))} for i, c in enumerate(centers)}
@@ -278,9 +289,9 @@ def recognize_bugs(image_path, output_path='result.json', clusters=None, debug=F
     if output_path:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\n✓ 识别完成！结果已保存到 {output_path}")
+        logger.info(f"识别完成！结果已保存到 {output_path}")
     else:
-        print(f"\n✓ 识别完成！")
+        logger.info("识别完成！")
 
     if debug:
         img_final = img.copy()
@@ -288,24 +299,25 @@ def recognize_bugs(image_path, output_path='result.json', clusters=None, debug=F
             color = centers[labels[i]]
             cv2.rectangle(img_final, (cell[0], cell[1]), (cell[0]+cell[2], cell[1]+cell[3]), tuple(color.tolist()), -1)
         cv2.imwrite(str(debug_dir / "05_color_result.png"), cv2.cvtColor(img_final.astype(np.uint8), cv2.COLOR_RGB2BGR))
-        print(f"✓ 调试图像已保存到 {debug_dir}")
+        logger.info(f"调试图像已保存到 {debug_dir}")
 
     return result, output_path
 
 def main():
     parser = argparse.ArgumentParser(description='田地捉虫 (Star Battle) 网格与颜色识别器')
     parser.add_argument('image', help='图像文件路径')
-    parser.add_argument('--debug', action='store_true', help='保存调试图像')
+    parser.add_argument('--debug', action='store_true', help='开启调试模式，显示详细日志')
     parser.add_argument('--clusters', type=int, help='手动指定颜色聚类数')
     parser.add_argument('--output', default='result.json', help='输出JSON文件名')
     args = parser.parse_args()
 
+    # 配置日志
+    setup_logger(args.debug)
+
     try:
         recognize_bugs(args.image, args.output, args.clusters, args.debug)
     except Exception as e:
-        print(f"\n❌ 识别失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"识别失败: {e}", exc_info=True)
 
 
 if __name__ == '__main__':
