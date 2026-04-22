@@ -19,6 +19,11 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import os
 
+import logging
+from logger_config import setup_logger
+
+logger = logging.getLogger(__name__)
+
 
 # ============================================================
 # 配置常量
@@ -107,7 +112,7 @@ def get_digit_contours_by_black(img, debug_dir=None):
     # 3. 寻找轮廓
     contours, _ = cv2.findContours(
         closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    print(f"检测到 {len(contours)} 个轮廓")
+    logger.debug(f"检测到 {len(contours)} 个轮廓")
 
     if debug_dir:
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -142,7 +147,7 @@ def get_digit_contours_by_black(img, debug_dir=None):
     row_digits = [x for x in all_digits if x[0] <= p1[0] + MERGE_DISTANCE]
     col_digits = [x for x in all_digits if x[1] <= p2[1] + MERGE_DISTANCE]
 
-    print(p1, p2)
+    logger.debug(f"区域识别 {p1, p2}")
 
     return row_digits, col_digits, (p1[0] + 30, p2[1] + 50), (p2[0] + 50, p1[1] + 50)
 
@@ -313,7 +318,7 @@ def f_row(img, row_digits, col_max_y=None):
         row_digits: 行数字区域列表
         col_max_y: 列约束的最大y坐标，用于确定行约束的起始位置
     """
-    print(f"检测到 {len(row_digits)} 个行数字区域")
+    logger.debug(f"检测到 {len(row_digits)} 个行数字区域")
     # 使用并行OCR
     result = _parallel_ocr(row_digits, img)
     result.sort(key=lambda x: (x[1], x[0]))
@@ -379,7 +384,7 @@ def f_col(img, col_digits, row_max_x=None):
         col_digits: 列数字区域列表
         row_max_x: 行约束的最大x坐标，用于确定列约束的起始位置
     """
-    print(f"检测到 {len(col_digits)} 个列数字区域")
+    logger.debug(f"检测到 {len(col_digits)} 个列数字区域")
     # 使用并行OCR
     result = _parallel_ocr(col_digits, img)
 
@@ -504,6 +509,7 @@ def recognize_from_image(img_path, debug=False):
 
 
 def main():
+    setup_logger(debug=True)
     parser = argparse.ArgumentParser(description='数织约束识别器')
     parser.add_argument('image', nargs='?',
                         default='screen.png', help='图像文件路径')
@@ -515,30 +521,28 @@ def main():
     if not img_path.is_file():
         img_path = Path(args.image)
 
-    print(f"识别图片: {img_path}")
-    print("-" * 50)
+    logger.debug(f"识别图片: {img_path}")
+    logger.debug("-" * 50)
 
     try:
         result = recognize_from_image(img_path, debug=args.debug)
 
-        print()
-        print("行约束 (左侧，从上到下):")
-        print(result['row'])
+        logger.debug()
+        logger.debug("行约束 (左侧，从上到下):")
+        logger.debug(result['row'])
 
-        print()
-        print("列约束 (顶部，从左到右):")
-        print(result['col'])
+        logger.debug()
+        logger.debug("列约束 (顶部，从左到右):")
+        logger.debug(result['col'])
 
-        print()
-        print("=" * 50)
-        print("JSON 格式输出:")
-        print("=" * 50)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        logger.debug()
+        logger.debug("=" * 50)
+        logger.debug("JSON 格式输出:")
+        logger.debug("=" * 50)
+        logger.debug(json.dumps(result, ensure_ascii=False, indent=2))
 
     except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error: {e}",exc_info=True)
 
 
 if __name__ == '__main__':

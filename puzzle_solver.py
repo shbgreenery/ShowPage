@@ -18,6 +18,10 @@ from typing import List, Tuple, Optional
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
+import logging
+from logger_config import setup_logger
+
+logger = logging.getLogger(__name__)
 
 # 目标颜色（RGB），允许误差 10
 TARGET_COLOR = (36, 138, 114)
@@ -27,16 +31,6 @@ COLOR_TOLERANCE = 10
 SWIPE_START = (100, 1720)
 TAP_COORD = (1050, 400)
 SWIPE_MID_POINT = (100, 1650)
-
-
-class LogLevel(Enum):
-    """日志级别枚举"""
-    INFO = 'ℹ️'
-    SUCCESS = '✅'
-    ERROR = '❌'
-    WARNING = '⚠️'
-
-
 class PuzzleSolver:
     def __init__(self):
         self.current_round = 0
@@ -44,12 +38,6 @@ class PuzzleSolver:
         self.filtered_points: List[Tuple[int, int]] = self.all_points[:]
         # 动态设置线程池大小：CPU 核心数，最少 4，最多 16
         self.thread_pool_size = max(4, min(16, os.cpu_count() or 1))
-
-    def log(self, message: str, level: LogLevel = LogLevel.INFO):
-        """输出日志"""
-        from time import strftime
-        timestamp = strftime('%H:%M:%S')
-        print(f"[{timestamp}] {level.value} {message}")
 
     def _generate_points(self) -> List[Tuple[int, int]]:
         """从 HTML 中移植的点位生成逻辑"""
@@ -73,23 +61,23 @@ class PuzzleSolver:
             )
 
             if result.returncode != 0:
-                self.log(f'截图获取失败: {result.stderr.decode()}', LogLevel.ERROR)
+                logger.error(f'截图获取失败: {result.stderr.decode()}')
                 return None
 
             if not result.stdout:
-                self.log('截图数据为空', LogLevel.ERROR)
+                logger.error('截图数据为空')
                 return None
 
             # 直接从字节流创建图片
             image = Image.open(BytesIO(result.stdout))
-            self.log(f'✓ 截图获取成功，尺寸: {image.size}', LogLevel.SUCCESS)
+            logger.debug(f'✓ 截图获取成功，尺寸: {image.size}')
             return image
 
         except subprocess.TimeoutExpired:
-            self.log('截图请求超时', LogLevel.ERROR)
+            logger.error('截图请求超时')
             return None
         except Exception as e:
-            self.log(f'截图处理异常: {e}', LogLevel.ERROR)
+            logger.error(f'截图处理异常: {e}', exc_info=True)
             return None
 
     def get_pixel_color(self, image: Image.Image, x: int, y: int) -> Tuple[int, int, int]:
@@ -134,7 +122,7 @@ class PuzzleSolver:
         """
         # 使用候选点（如果提供），否则使用全部点位
         points_to_check = candidate_points if candidate_points is not None else self.all_points
-        self.log(f'📸 开始进行颜色过滤...', LogLevel.INFO)
+        logger.info(f'开始进行颜色过滤...')
 
         # 加载图片数据到内存并获取线程安全的像素访问器
         pixels = image.load()
@@ -157,22 +145,13 @@ class PuzzleSolver:
             all_filtered = [r for r in all_results if r is not None]
 
             if len(all_filtered) == len(points_to_check):
-                self.log(
-                    f'⚠️ 全部点过滤仍无效，直接返回全部 {len(self.all_points)} 个点',
-                    LogLevel.WARNING
-                )
+                logger.warning(f'全部点过滤仍无效，直接返回全部')
                 return self.all_points
 
-            self.log(
-                f'✓ 颜色过滤完成！从 {len(self.all_points)} 个全部点中筛选出 {len(all_filtered)} 个有效点',
-                LogLevel.SUCCESS
-            )
+            logger.info(f'颜色过滤完成！筛选出 {len(all_filtered)} 个有效点')
             return all_filtered
 
-        self.log(
-            f'✓ 颜色过滤完成！从 {len(points_to_check)} 个候选点中筛选出 {len(filtered)} 个有效点',
-            LogLevel.SUCCESS
-        )
+        logger.warning(f'颜色过滤完成！筛选出 {len(filtered)} 个有效点')
         return filtered
 
     def _build_swipe_commands(self, x: int, y: int) -> List[str]:
@@ -193,12 +172,10 @@ class PuzzleSolver:
     def solve_round(self) -> bool:
         """执行一轮求解（批量执行 ADB 命令以提升性能）"""
         if not self.filtered_points:
-            self.log('⚠️ 没有可处理的点位', LogLevel.ERROR)
+            logger.error('没有可处理的点位')
             return False
 
-        total_points = len(self.filtered_points)
-        self.log(
-            f'🚀 开始第 {self.current_round + 1} 轮求解，共 {total_points} 个点', LogLevel.INFO)
+        logger.info(f'🚀 开始第 {self.current_round + 1} 轮求解')
 
         # 使用进度条显示处理进度
         with tqdm(total=len(self.filtered_points),
@@ -226,15 +203,14 @@ class PuzzleSolver:
                     )
 
                     if result.returncode != 0:
-                        self.log(
-                            f'批量操作失败: {result.stderr.decode()}', LogLevel.ERROR)
+                        logger.error('批量操作失败')
                         return False
 
                 except subprocess.TimeoutExpired:
-                    self.log('批量操作超时', LogLevel.ERROR)
+                    logger.error('批量操作超时')
                     return False
                 except Exception as e:
-                    self.log(f'批量操作异常: {e}', LogLevel.ERROR)
+                    logger.error(f'批量操作异常: {e}', exc_info=True)
                     return False
 
                 # 更新进度条
@@ -244,7 +220,7 @@ class PuzzleSolver:
                 time.sleep(0.02)
 
         self.current_round += 1
-        print(f'✓ 第 {self.current_round} 轮完成！', flush=True)
+        logger.info(f'第 {self.current_round} 轮求解完成')
         return True
 
     def start_solving(self):
@@ -257,14 +233,14 @@ class PuzzleSolver:
                 # if round_count % 2 == 0:
                 screenshot = self.get_screenshot()
                 if not screenshot:
-                    self.log('截图获取失败，停止求解', LogLevel.ERROR)
+                    logger.error('截图获取失败，停止求解')
                     break
 
                 self.filtered_points = self.filter_points_by_color(
                     screenshot, candidate_points=self.filtered_points)
 
                 if not self.filtered_points:
-                    self.log('⚠️ 没有找到匹配颜色的点，停止求解', LogLevel.ERROR)
+                    logger.error('没有可处理的点位，停止求解')
                     break
 
                 # 求解这一轮
@@ -276,42 +252,43 @@ class PuzzleSolver:
                 round_count += 1
 
         except KeyboardInterrupt:
-            self.log('\n⏹️ 用户中止求解', LogLevel.INFO)
+            logger.warning('用户中止求解')
         except Exception as e:
-            self.log(f'求解过程中出错: {e}', LogLevel.ERROR)
+            logger.error(f'求解过程中出错: {e}', exc_info=True)
         finally:
-            self.log(f'求解已停止，共完成 {self.current_round} 轮', LogLevel.INFO)
+            logger.debug(f'求解已停止, 共完成 {self.current_round} 轮')
 
 
 def main():
+    setup_logger(debug=True)
     """主函数"""
-    print("\n" + "=" * 60)
-    print("🧩 拼图暴力求解器 - Python 版本（直接 ADB）")
-    print("=" * 60)
-    print(f"📱 使用 ADB 直接操作，无 HTTP 代理开销")
-    print(f"🎯 目标颜色: RGB{TARGET_COLOR} (允许误差 ±{COLOR_TOLERANCE})")
-    print(f"⚙️ 操作: 拖动 {SWIPE_START} → (x, y+300) → 点击 {TAP_COORD}")
-    print("=" * 60 + "\n")
+    logger.debug("\n" + "=" * 60)
+    logger.debug("🧩 拼图暴力求解器 - Python 版本（直接 ADB）")
+    logger.debug("=" * 60)
+    logger.debug(f"📱 使用 ADB 直接操作，无 HTTP 代理开销")
+    logger.debug(f"🎯 目标颜色: RGB{TARGET_COLOR} (允许误差 ±{COLOR_TOLERANCE})")
+    logger.debug(f"⚙️ 操作: 拖动 {SWIPE_START} → (x, y+300) → 点击 {TAP_COORD}")
+    logger.debug("=" * 60 + "\n")
 
     solver = PuzzleSolver()
 
     # 显示配置信息
-    print(f"🔧 线程池大小: {solver.thread_pool_size} (基于 CPU 核心: {os.cpu_count()})")
-    print(f"📍 已生成 {len(solver.all_points)} 个点位")
-    print(f"   示例: {solver.all_points[:5]}")
-    print()
+    logger.debug(f"🔧 线程池大小: {solver.thread_pool_size} (基于 CPU 核心: {os.cpu_count()})")
+    logger.debug(f"📍 已生成 {len(solver.all_points)} 个点位")
+    logger.debug(f"   示例: {solver.all_points[:5]}")
+    logger.debug()
     # 启动求解
-    print("💡 按 Ctrl+C 可以停止求解\n")
+    logger.debug("💡 按 Ctrl+C 可以停止求解\n")
 
     try:
         solver.start_solving()
     except KeyboardInterrupt:
         pass
 
-    print("\n" + "=" * 60)
-    print(f"📊 求解统计")
-    print(f"   完成轮数: {solver.current_round}")
-    print("=" * 60 + "\n")
+    logger.debug("\n" + "=" * 60)
+    logger.debug(f"📊 求解统计")
+    logger.debug(f"   完成轮数: {solver.current_round}")
+    logger.debug("=" * 60 + "\n")
 
 
 if __name__ == '__main__':
