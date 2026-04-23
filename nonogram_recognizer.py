@@ -527,15 +527,12 @@ def main():
     try:
         result = recognize_from_image(img_path, debug=args.debug)
 
-        logger.debug()
         logger.debug("行约束 (左侧，从上到下):")
         logger.debug(result['row'])
 
-        logger.debug()
         logger.debug("列约束 (顶部，从左到右):")
         logger.debug(result['col'])
 
-        logger.debug()
         logger.debug("=" * 50)
         logger.debug("JSON 格式输出:")
         logger.debug("=" * 50)

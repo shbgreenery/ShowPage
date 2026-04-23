@@ -262,21 +262,8 @@ class PuzzleSolver:
 def main():
     setup_logger(debug=True)
     """主函数"""
-    logger.debug("\n" + "=" * 60)
-    logger.debug("🧩 拼图暴力求解器 - Python 版本（直接 ADB）")
-    logger.debug("=" * 60)
-    logger.debug(f"📱 使用 ADB 直接操作，无 HTTP 代理开销")
-    logger.debug(f"🎯 目标颜色: RGB{TARGET_COLOR} (允许误差 ±{COLOR_TOLERANCE})")
-    logger.debug(f"⚙️ 操作: 拖动 {SWIPE_START} → (x, y+300) → 点击 {TAP_COORD}")
-    logger.debug("=" * 60 + "\n")
-
+    logger.debug("拼图暴力求解器 - Python 版本（直接 ADB）")
     solver = PuzzleSolver()
-
-    # 显示配置信息
-    logger.debug(f"🔧 线程池大小: {solver.thread_pool_size} (基于 CPU 核心: {os.cpu_count()})")
-    logger.debug(f"📍 已生成 {len(solver.all_points)} 个点位")
-    logger.debug(f"   示例: {solver.all_points[:5]}")
-    logger.debug()
     # 启动求解
     logger.debug("💡 按 Ctrl+C 可以停止求解\n")
 
@@ -285,10 +272,8 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    logger.debug("\n" + "=" * 60)
-    logger.debug(f"📊 求解统计")
+    logger.debug(f"求解统计")
     logger.debug(f"   完成轮数: {solver.current_round}")
-    logger.debug("=" * 60 + "\n")
 
 
 if __name__ == '__main__':
