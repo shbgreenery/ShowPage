@@ -31,6 +31,8 @@ COLOR_TOLERANCE = 10
 SWIPE_START = (100, 1720)
 TAP_COORD = (1050, 400)
 SWIPE_MID_POINT = (100, 1650)
+
+
 class PuzzleSolver:
     def __init__(self):
         self.current_round = 0
@@ -260,7 +262,7 @@ class PuzzleSolver:
 
 
 def main():
-    setup_logger(debug=True)
+    setup_logger(debug=False)
     """主函数"""
     logger.debug("拼图暴力求解器 - Python 版本（直接 ADB）")
     solver = PuzzleSolver()

@@ -4,6 +4,10 @@ ADB 代理服务器
 接收来自网页的 ADB 命令请求，通过本地 ADB 执行
 """
 
+from logger_config import setup_logger
+from bugcatcher_constants import JSONKeys
+from bugcatcher_solver import solve_puzzle
+from bugcatcher_recognizer import recognize_bugs
 import nonogram_recognizer
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import subprocess
@@ -18,10 +22,6 @@ import logging
 # 添加当前目录到 path 以便导入模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bugcatcher_recognizer import recognize_bugs
-from bugcatcher_solver import solve_puzzle
-from bugcatcher_constants import JSONKeys
-from logger_config import setup_logger
 
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
@@ -87,11 +87,13 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 if line.strip():
                     parts = line.split('\t')
                     if len(parts) >= 2:
-                        devices.append({'serial': parts[0], 'status': parts[1]})
+                        devices.append(
+                            {'serial': parts[0], 'status': parts[1]})
             self.send_json_response({'status': Status.OK, 'devices': devices})
         except Exception as e:
             logger.error(f"获取设备列表失败: {e}", exc_info=True)
-            self.send_json_response({'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
 
     def _handle_get_screenshot(self):
         try:
@@ -106,21 +108,24 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             logger.info(f"截图获取成功")
         except Exception as e:
             logger.error(f"截图处理异常: {e}", exc_info=True)
-            self.send_json_response({'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
 
     def _handle_analyze_nonogram(self):
         try:
             logger.info("开始分析数织游戏约束")
             image_base64 = self._capture_screenshot()
             constraints = self._analyze_nonogram_constraints(image_base64)
-            response_data = {'status': Status.OK, 'row': constraints.get('row', ''), 'col': constraints.get('col', '')}
+            response_data = {'status': Status.OK, 'row': constraints.get(
+                'row', ''), 'col': constraints.get('col', '')}
             if 'gameArea' in constraints:
                 response_data['gameArea'] = constraints['gameArea']
             self.send_json_response(response_data)
             logger.info("数织游戏约束分析成功")
         except Exception as e:
             logger.error(f"数织分析失败: {str(e)}", exc_info=True)
-            self.send_json_response({'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
 
     def _handle_solve_bugcatcher(self):
         logger.info("开始“田地捉虫”自动化流程")
@@ -132,7 +137,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
                 temp_path = tmp_file.name
             logger.info(f"截图已临时保存到 {temp_path}")
 
-            puzzle_data, _ = recognize_bugs(str(temp_path), output_path=None, debug=False)
+            puzzle_data, _ = recognize_bugs(
+                str(temp_path), output_path=None, debug=False)
             if not puzzle_data:
                 raise Exception("图像识别返回空数据")
             logger.info("图像识别成功")
@@ -143,14 +149,26 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             logger.info(f"谜题求解成功，找到 {len(solution)} 个虫子。")
 
             solution_set = set(solution)
-            taps = [
-                (cell[JSONKeys.X] + cell[JSONKeys.W] // 2, cell[JSONKeys.Y] + cell[JSONKeys.H] // 2)
-                for cell in puzzle_data[JSONKeys.CELLS]
-                if (cell[JSONKeys.ROW], cell[JSONKeys.COL]) not in solution_set
-            ]
+            taps = []
+            # taps = [
+            #     (cell[JSONKeys.X] + cell[JSONKeys.W] // 2,
+            #      cell[JSONKeys.Y] + cell[JSONKeys.H] // 2)
+            #     for cell in puzzle_data[JSONKeys.CELLS]
+            #     if (cell[JSONKeys.ROW], cell[JSONKeys.COL]) not in solution_set
+            # ]
+            # for cell in puzzle_data[JSONKeys.CELLS]:
+            #     if (cell[JSONKeys.ROW], cell[JSONKeys.COL]) not in solution_set:
+            #         taps.append((cell[JSONKeys.X] + cell[JSONKeys.W] //
+            #                     2, cell[JSONKeys.Y] + cell[JSONKeys.H] // 2))
+            for cell in puzzle_data[JSONKeys.CELLS]:
+                if (cell[JSONKeys.ROW], cell[JSONKeys.COL]) in solution_set:
+                    taps.append((cell[JSONKeys.X] + cell[JSONKeys.W] //
+                                2, cell[JSONKeys.Y] + cell[JSONKeys.H] // 2))
+                    taps.append((cell[JSONKeys.X] + cell[JSONKeys.W] //
+                                2, cell[JSONKeys.Y] + cell[JSONKeys.H] // 2))
 
             if taps:
-                logger.info(f"准备点击 {len(taps)} 个非虫子单元格")
+                logger.info(f"准备点击 {len(taps)} 个单元格")
                 self._batch_tap(taps)
                 logger.info("点击命令发送成功")
 
@@ -162,7 +180,8 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             logger.error(f"“田地捉虫”自动化流程失败: {str(e)}", exc_info=True)
-            self.send_json_response({'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)
@@ -173,20 +192,25 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         if self.path == '/tap':
             try:
                 content_length = int(self.headers['Content-Length'])
-                post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
-                taps_coords = [(tap.get('x', 0), tap.get('y', 0)) for tap in post_data.get('taps', [])]
+                post_data = json.loads(self.rfile.read(
+                    content_length).decode('utf-8'))
+                taps_coords = [(tap.get('x', 0), tap.get('y', 0))
+                               for tap in post_data.get('taps', [])]
 
                 if not taps_coords:
-                    self.send_json_response({'status': Status.OK, 'total': 0, 'success': 0, 'failed': 0})
+                    self.send_json_response(
+                        {'status': Status.OK, 'total': 0, 'success': 0, 'failed': 0})
                     return
 
                 logger.info(f'批量执行 {len(taps_coords)} 个点击命令')
                 self._batch_tap(taps_coords)
-                self.send_json_response({'status': Status.OK, 'total': len(taps_coords), 'success': len(taps_coords), 'failed': 0})
+                self.send_json_response({'status': Status.OK, 'total': len(
+                    taps_coords), 'success': len(taps_coords), 'failed': 0})
 
             except Exception as e:
                 logger.error(f"点击处理失败: {e}", exc_info=True)
-                self.send_json_response({'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+                self.send_json_response(
+                    {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
         else:
             self.send_error(HttpCode.NOT_FOUND, "Endpoint not found")
 
@@ -228,12 +252,16 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
             if pos and len(pos) == 2:
                 x1, y1 = pos[0]
                 x2, y2 = pos[1]
-                game_area = {'startX': x1, 'startY': y1, 'gridWidth': x2 - x1, 'gridHeight': y2 - y1}
+                game_area = {'startX': x1, 'startY': y1,
+                             'gridWidth': x2 - x1, 'gridHeight': y2 - y1}
                 logger.debug(f"识别到游戏区域: 起点({x1},{y1}), 尺寸({x2-x1}x{y2-y1})")
 
-            data = {'row': result.get('row', '').replace('\n', '\\n'), 'col': result.get('col', '').replace('\n', '\\n')}
-            if game_area: data['gameArea'] = game_area
-            logger.info(f"本地识别成功: row={data['row'][:30]}..., col={data['col'][:30]}...")
+            data = {'row': result.get('row', '').replace(
+                '\n', '\\n'), 'col': result.get('col', '').replace('\n', '\\n')}
+            if game_area:
+                data['gameArea'] = game_area
+            logger.info(
+                f"本地识别成功: row={data['row'][:30]}..., col={data['col'][:30]}...")
             return data
 
         except Exception as e:
