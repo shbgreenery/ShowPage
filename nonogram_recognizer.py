@@ -262,16 +262,9 @@ def _pad_constraints(constraints, min_spacing, threshold_factor=1.5):
     return result
 
 
-def _finalize_constraints(constraints, target_counts=[10, 15]):
+def _finalize_constraints(constraints, target_counts=[5, 10, 15, 20, 25, 30]):
     """
-    最终补齐约束到目标数量
-
-    参数:
-        constraints: 约束值列表
-        target_counts: 目标数量列表（通常是10或15）
-
-    返回:
-        补齐后的约束值列表
+    最终补齐约束到目标数量，智能适配各种常见棋盘大小
     """
     current_count = len(constraints)
     target_count = None
@@ -287,23 +280,14 @@ def _finalize_constraints(constraints, target_counts=[10, 15]):
     while len(constraints) < target_count:
         constraints.append("-1")
 
-    return constraints[:target_count]
+    return constraints
 
 
 def _pad_to_boundary(constraints, positions, min_spacing, boundary_threshold):
-    """
-    根据边界阈值补全约束
-
-    参数:
-        constraints: 约束列表（会被修改）
-        positions: 位置列表
-        min_spacing: 最小间距
-        boundary_threshold: 边界阈值
-    """
     if positions:
         max_pos = max(positions)
         if max_pos < boundary_threshold:
-            needed = int((boundary_threshold - max_pos) / min_spacing)
+            needed = int(round((boundary_threshold - max_pos) / min_spacing))
             for _ in range(max(0, needed)):
                 constraints.append("-1")
     return constraints
@@ -355,11 +339,11 @@ def f_row(img, row_digits, col_max_y=None):
         expected_start_y = col_max_y + 50
         first_row_y = constraints_with_pos[0][0]
         if first_row_y > expected_start_y + min_dy * 1.5:
-            # 需要在开头补全缺失的行
             missing_count = int(
                 round((first_row_y - expected_start_y) / min_dy))
-            # 使用列表拼接替代 insert(0, ...) 避免 O(n²)
-            missing = [(expected_start_y, "-1")] * max(0, missing_count)
+            # 【修复】：给每个缺失项生成递增的假坐标，防止后续 gap 计算出错
+            missing = [(expected_start_y + i * min_dy, "-1")
+                       for i in range(max(0, missing_count))]
             constraints_with_pos = missing + constraints_with_pos
 
     # 补全中间缺失的行
@@ -427,11 +411,11 @@ def f_col(img, col_digits, row_max_x=None):
         expected_start_x = row_max_x + 30
         first_col_x = constraints_with_pos[0][0]
         if first_col_x > expected_start_x + min_dx * 1.5:
-            # 需要在开头补全缺失的列
             missing_count = int(
                 round((first_col_x - expected_start_x) / min_dx))
-            # 使用列表拼接替代 insert(0, ...) 避免 O(n²)
-            missing = [(expected_start_x, "-1")] * max(0, missing_count)
+            # 【修复】：给每个缺失项生成递增的假坐标
+            missing = [(expected_start_x + i * min_dx, "-1")
+                       for i in range(max(0, missing_count))]
             constraints_with_pos = missing + constraints_with_pos
 
     # 补全中间缺失的列
@@ -539,7 +523,7 @@ def main():
         logger.debug(json.dumps(result, ensure_ascii=False, indent=2))
 
     except Exception as e:
-        logger.error(f"Error: {e}",exc_info=True)
+        logger.error(f"Error: {e}", exc_info=True)
 
 
 if __name__ == '__main__':
