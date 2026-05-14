@@ -137,8 +137,9 @@ class PuzzleSolver:
 
         filtered = [r for r in results if r is not None]
 
-        # 如果过滤前后数量相同，说明候选点没有匹配的点
-        if len(filtered) == len(points_to_check) and len(filtered) != len(self.all_points):
+        # 如果过滤前后数量相同，说明候选点没有匹配的点，用全部点进行过滤
+        # 如果过滤后没有任何点剩下，可能漏掉了有效点，用全部点进行过滤
+        if (len(filtered) == len(points_to_check) and len(filtered) != len(self.all_points)) or len(filtered) == 0:
             with ThreadPoolExecutor(max_workers=self.thread_pool_size) as executor:
                 all_results = list(executor.map(
                     lambda p: self._check_single_point(pixels, p),
