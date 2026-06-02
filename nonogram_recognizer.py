@@ -345,6 +345,7 @@ def f_row(img, row_digits, col_max_y=None):
             missing = [(expected_start_y + i * min_dy, "-1")
                        for i in range(max(0, missing_count))]
             constraints_with_pos = missing + constraints_with_pos
+            y_positions = [pos for pos, _ in constraints_with_pos]
 
     # 补全中间缺失的行
     padded_constraints = _pad_constraints(constraints_with_pos, min_dy)
@@ -356,7 +357,15 @@ def f_row(img, row_digits, col_max_y=None):
     # 最终补齐到目标数量（10或15）
     final_constraints = _finalize_constraints(padded_constraints)
 
-    return '\n'.join(final_constraints)
+    # 数末尾追加的 -1 行数，用于调整 pos 游戏区域
+    end_pad_rows = 0
+    for v in reversed(final_constraints):
+        if v == "-1":
+            end_pad_rows += 1
+        else:
+            break
+
+    return '\n'.join(final_constraints), end_pad_rows, min_dy
 
 
 def f_col(img, col_digits, row_max_x=None):
@@ -417,6 +426,7 @@ def f_col(img, col_digits, row_max_x=None):
             missing = [(expected_start_x + i * min_dx, "-1")
                        for i in range(max(0, missing_count))]
             constraints_with_pos = missing + constraints_with_pos
+            x_positions = [pos for pos, _ in constraints_with_pos]
 
     # 补全中间缺失的列
     padded_constraints = _pad_constraints(constraints_with_pos, min_dx)
@@ -428,7 +438,15 @@ def f_col(img, col_digits, row_max_x=None):
     # 最终补齐到目标数量（10或15）
     final_constraints = _finalize_constraints(padded_constraints)
 
-    return '\n'.join(final_constraints)
+    # 数末尾追加的 -1 列数，用于调整 pos 游戏区域
+    end_pad_cols = 0
+    for v in reversed(final_constraints):
+        if v == "-1":
+            end_pad_cols += 1
+        else:
+            break
+
+    return '\n'.join(final_constraints), end_pad_cols, min_dx
 
 
 # ============================================================
@@ -483,12 +501,22 @@ def recognize_from_image(img_path, debug=False):
     with ThreadPoolExecutor(max_workers=2) as executor:
         row_future = executor.submit(f_row, img, row_digits, col_max_y)
         col_future = executor.submit(f_col, img, col_digits, row_max_x)
-        row, col = row_future.result(), col_future.result()
+        row, end_pad_rows, min_dy = row_future.result()
+        col, end_pad_cols, min_dx = col_future.result()
+
+    # 根据末尾补全的 -1 行列数调整游戏区域 pos
+    # p1 = (startX, startY) - 左上角，不需要调整
+    # p2 = (endX, endY) - 右下角，末尾补 -1 后需要扩展
+    p1_adjusted = p1
+    p2_adjusted = (
+        p2[0] + int(round(end_pad_cols * min_dx)),
+        p2[1] + int(round(end_pad_rows * min_dy))
+    )
 
     return {
         "row": row,
         "col": col,
-        "pos": (p1, p2)
+        "pos": (p1_adjusted, p2_adjusted)
     }
 
 
