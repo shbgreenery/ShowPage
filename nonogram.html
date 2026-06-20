@@ -88,17 +88,15 @@
             margin-bottom: 16px;
         }
 
-        .input-section textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            background-color: white;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-
+        .input-section textarea:focus,
         .input-section input[type="text"]:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .input-section textarea:focus {
+            background-color: white;
         }
 
         label {
@@ -187,14 +185,18 @@
             border-color: #cbd5e1;
         }
 
-        button:focus-visible {
+        button:focus-visible,
+        .modal-close:focus-visible,
+        .settings-summary:focus-visible {
             outline: 2px solid var(--primary);
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
             transition: outline 0.15s ease, box-shadow 0.15s ease;
         }
 
-        button:focus:not(:focus-visible) {
+        button:focus:not(:focus-visible),
+        .modal-close:focus:not(:focus-visible),
+        .settings-summary:focus:not(:focus-visible) {
             outline: none;
         }
 
@@ -417,16 +419,6 @@
             color: var(--text-primary);
         }
 
-        .modal-close:focus-visible {
-            outline: 2px solid var(--primary);
-            outline-offset: 2px;
-            border-radius: 6px;
-        }
-
-        .modal-close:focus:not(:focus-visible) {
-            outline: none;
-        }
-
         .modal-body {
             padding: 24px;
         }
@@ -448,12 +440,6 @@
             border-radius: 4px;
             padding: 2px 4px;
             margin: -2px -4px;
-        }
-
-        .settings-summary:focus-visible {
-            outline: 2px solid var(--primary);
-            outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
         }
 
         /* 截图选择模态弹窗样式 */
