@@ -22,7 +22,9 @@ This is a collection of automated game solving tools for Android mobile games. T
 **Game Solvers**
 - `puzzle_solver.py` - Automated puzzle solver using color detection (RGB matching)
 - `puzzle_solver.html` - Web UI for puzzle solving
-- `nonogram.html` - Nonogram (logic puzzle) solver with ADB integration
+- `nonogram.html` - Nonogram (logic puzzle) solver web UI with ADB integration
+- `nonogram_solver.py` - Nonogram DFS solver (combinatorial candidate generation + constraint propagation)
+- `nonogram_recognizer.py` - Nonogram constraint recognizer (OCR-based from screenshots)
 - `minesweeper.html` - Minesweeper solver
 
 **Main Entry Point**

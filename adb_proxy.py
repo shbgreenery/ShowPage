@@ -9,6 +9,7 @@ from bugcatcher_constants import JSONKeys
 from bugcatcher_solver import solve_puzzle
 from bugcatcher_recognizer import recognize_bugs
 import nonogram_recognizer
+import nonogram_solver
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
@@ -196,29 +197,71 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """处理 POST 请求"""
         if self.path == '/tap':
-            try:
-                content_length = int(self.headers['Content-Length'])
-                post_data = json.loads(self.rfile.read(
-                    content_length).decode('utf-8'))
-                taps_coords = [(tap.get('x', 0), tap.get('y', 0))
-                               for tap in post_data.get('taps', [])]
-
-                if not taps_coords:
-                    self.send_json_response(
-                        {'status': Status.OK, 'total': 0, 'success': 0, 'failed': 0})
-                    return
-
-                logger.info(f'批量执行 {len(taps_coords)} 个点击命令')
-                self._batch_tap(taps_coords)
-                self.send_json_response({'status': Status.OK, 'total': len(
-                    taps_coords), 'success': len(taps_coords), 'failed': 0})
-
-            except Exception as e:
-                logger.error(f"点击处理失败: {e}", exc_info=True)
-                self.send_json_response(
-                    {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+            self._handle_post_tap()
+        elif self.path == '/solve-nonogram':
+            self._handle_solve_nonogram()
         else:
             self.send_error(HttpCode.NOT_FOUND, "Endpoint not found")
+
+    def _handle_post_tap(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = json.loads(self.rfile.read(
+                content_length).decode('utf-8'))
+            taps_coords = [(tap.get('x', 0), tap.get('y', 0))
+                           for tap in post_data.get('taps', [])]
+
+            if not taps_coords:
+                self.send_json_response(
+                    {'status': Status.OK, 'total': 0, 'success': 0, 'failed': 0})
+                return
+
+            logger.info(f'批量执行 {len(taps_coords)} 个点击命令')
+            self._batch_tap(taps_coords)
+            self.send_json_response({'status': Status.OK, 'total': len(
+                taps_coords), 'success': len(taps_coords), 'failed': 0})
+
+        except Exception as e:
+            logger.error(f"点击处理失败: {e}", exc_info=True)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
+
+    def _handle_solve_nonogram(self):
+        """处理 Nonogram 求解请求"""
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = json.loads(self.rfile.read(
+                content_length).decode('utf-8'))
+            rows = post_data.get('rows', [])
+            cols = post_data.get('cols', [])
+
+            if not rows or not cols:
+                self.send_json_response(
+                    {'status': Status.ERROR, 'message': '缺少行列约束'},
+                    HttpCode.SERVER_ERROR)
+                return
+
+            n = len(rows)
+            logger.info(f"开始求解 {n}x{n} 数织...")
+            result = nonogram_solver.solve(rows, cols)
+
+            if result is None:
+                self.send_json_response(
+                    {'status': Status.ERROR, 'message': '无解'},
+                    HttpCode.SERVER_ERROR)
+                return
+
+            self.send_json_response({
+                'status': Status.OK,
+                'grid': result,
+                'size': n
+            })
+            logger.info(f"{n}x{n} 数织求解成功")
+
+        except Exception as e:
+            logger.error(f"数织求解失败: {e}", exc_info=True)
+            self.send_json_response(
+                {'status': Status.ERROR, 'message': str(e)}, HttpCode.SERVER_ERROR)
 
     def _capture_screenshot_bytes(self) -> bytes:
         """截取手机屏幕，返回原始 PNG 字节数据（内部使用，避免不必要的编解码）"""
@@ -327,6 +370,7 @@ def main():
     logger.info("   GET  /analyze-nonogram  - 分析数织游戏约束")
     logger.info("   GET  /solve-bugcatcher  - 自动化“田地捉虫”流程")
     logger.info("   POST /tap               - 执行点击操作")
+    logger.info("   POST /solve-nonogram    - 求解数织谜题（DFS）")
     logger.info("💡 按 Ctrl+C 停止服务器")
 
     try:

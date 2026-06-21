@@ -569,7 +569,7 @@
             <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400"></textarea>
 
             <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button class="btn-primary" onclick="solve()">求解</button>
+                <button class="btn-primary" onclick="solveWithLock()">求解</button>
                 <button onclick="loadSample()">示例</button>
                 <button onclick="toggleSpeedRacing()" id="speed-racing-btn">竞速</button>
             </div>
@@ -971,8 +971,8 @@
             }
         }
 
-        // 主求解函数
-        function solve(skipModal = false) {
+        // 主求解函数（异步调用后端 DFS 求解器）
+        async function solve(skipModal = false) {
             const statusEl = document.getElementById('status');
             const resultArea = document.getElementById('result-area');
             resultArea.classList.remove('show');
@@ -989,13 +989,6 @@
                 throw error;
             }
 
-            // 限制最多20行
-            if (rowsInput.length > 20 || colsInput.length > 20) {
-                const error = new Error("行数和列数不能超过20");
-                setStatus(`错误：${error.message}`, 'disconnected');
-                throw error;
-            }
-
             if (rowsInput.length !== colsInput.length) {
                 const error = new Error("行数和列数必须相等");
                 setStatus(`错误：${error.message}`, 'disconnected');
@@ -1004,17 +997,26 @@
 
             const n = rowsInput.length;
 
-            // 2. 初始化网格 (-1=未知, 1=填, 0=空)
-            let grid = Array(n).fill().map(() => Array(n).fill(UNKNOWN));
-
-            // 3. 调用移植的Python算法
+            // 2. 调用后端 DFS 求解器
             try {
-                const solution = solveNonogram(rowsInput, colsInput);
+                const response = await fetch(`${proxyUrl}/solve-nonogram`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rows: rowsInput, cols: colsInput })
+                });
 
-                // 4. 渲染结果
+                const data = await response.json();
+
+                if (!response.ok || data.status !== 'ok') {
+                    throw new Error(data.message || '求解失败');
+                }
+
+                const solution = data.grid;
+
+                // 3. 渲染结果
                 renderGrid(solution, rowsInput, colsInput);
 
-                setStatus("求解成功！", 'connected');
+                setStatus(`求解成功！(${n}x${n})`, 'connected');
                 resultArea.classList.add('show');
 
                 // 求解成功后决定游戏区域的配置方式
@@ -1023,7 +1025,6 @@
                         // 竞速模式:直接使用AI返回的配置或已有配置,不弹窗
                         console.log('竞速模式:跳过截图选择弹窗');
                         if (gameSession.aiRecognizedArea) {
-                            // 使用AI识别的区域更新ADB配置
                             const area = gameSession.aiRecognizedArea;
                             adbConfig.startX = area.startX;
                             adbConfig.startY = area.startY;
@@ -1032,18 +1033,15 @@
                             gameSession.hasConfigured = true;
                             console.log('已使用AI识别区域配置ADB:', area);
                         } else {
-                            // 尝试加载记忆的位置
                             const memory = loadSelectionMemory();
                             if (memory.colMemory || memory.rowMemory) {
                                 console.log('使用记忆位置配置');
-                                // 这里需要从记忆恢复配置
                                 const startX = loadStartXMemory(currentGrid[0].length, Math.max(...parseConstraints().rowMaxConstraintLength));
                                 adbConfig.startX = startX;
                                 gameSession.hasConfigured = true;
                             }
                         }
                     } else {
-                        // 正常模式:弹出截图选择框
                         console.log('首次配置截图区域', gameSession.aiRecognizedArea ? '(AI区域已识别)' : '');
                         openScreenshotModal();
                     }
@@ -1052,187 +1050,13 @@
                 }
             } catch (e) {
                 setStatus(`求解错误: ${e.message}`, 'disconnected');
-                throw e; // 重新抛出错误
+                throw e;
             }
         }
 
-        // 非ogram求解算法（移植自Python版本）
-        function solveNonogram(rows, cols) {
-            const n = rows.length;
-            if (n !== cols.length) {
-                throw new Error("行数和列数不一致");
-            }
-
-            const ans = Array(n).fill().map(() => Array(n).fill(-1));
-
-            // 将rows和cols转换为元组
-            const rowsTuple = rows.map(row => JSON.stringify(row));
-            const colsTuple = cols.map(col => JSON.stringify(col));
-
-            // 将整数转换为二进制字符串
-            function int2str(i) {
-                let si = i.toString(2);
-                return '0'.repeat(n - si.length) + si;
-            }
-
-            // 将二进制字符串转换为数组
-            function str2arr(s) {
-                const tmp = [];
-                for (let i = 0; i < s.length; i++) {
-                    const c = s[i];
-                    if (c === '1') {
-                        if (i === 0 || s[i - 1] === '0') {
-                            tmp.push(1);
-                        } else {
-                            tmp[tmp.length - 1] += 1;
-                        }
-                    }
-                }
-                return tmp;
-            }
-
-            // 设置函数
-            function f1(i, j) {
-                ans[i][j] = 1;
-                for (const p of [...prow[i]]) { // 创建副本以避免迭代时修改
-                    if (p[j] === '0') {
-                        prow[i].delete(p);
-                    }
-                }
-                for (const p of [...pcol[j]]) { // 创建副本以避免迭代时修改
-                    if (p[i] === '0') {
-                        pcol[j].delete(p);
-                    }
-                }
-            }
-
-            function f0(i, j) {
-                ans[i][j] = 0;
-                for (const p of [...prow[i]]) { // 创建副本以避免迭代时修改
-                    if (p[j] === '1') {
-                        prow[i].delete(p);
-                    }
-                }
-                for (const p of [...pcol[j]]) { // 创建副本以避免迭代时修改
-                    if (p[i] === '1') {
-                        pcol[j].delete(p);
-                    }
-                }
-            }
-
-            // 创建所有可能状态的映射
-            const cs = new Map();
-            for (let state = 0; state < (1 << n); state++) {
-                const strState = int2str(state);
-                const arrState = str2arr(strState);
-
-                // 添加对应的状态
-                const arrKey = JSON.stringify(arrState);
-                if (!cs.has(arrKey)) {
-                    cs.set(arrKey, []);
-                }
-                cs.get(arrKey).push(strState);
-
-                // 为未确定的线索添加所有状态
-                const unmarkedKey = JSON.stringify([-1]);
-                if (!cs.has(unmarkedKey)) {
-                    cs.set(unmarkedKey, []);
-                }
-                cs.get(unmarkedKey).push(strState);
-            }
-
-            // 初始化行和列的可能状态集合
-            const prow = Array(n).fill().map(() => new Set());
-            const pcol = Array(n).fill().map(() => new Set());
-
-            for (let i = 0; i < n; i++) {
-                const rowKey = rowsTuple[i];
-                if (cs.has(rowKey)) {
-                    for (const p of cs.get(rowKey)) {
-                        prow[i].add(p);
-                    }
-                }
-
-                const colKey = colsTuple[i];
-                if (cs.has(colKey)) {
-                    for (const p of cs.get(colKey)) {
-                        pcol[i].add(p);
-                    }
-                }
-            }
-
-            // 迭代直到没有变化
-            while (true) {
-                let change = false;
-
-                for (let i = 0; i < n; i++) {
-                    // 处理行
-                    const ps = prow[i];
-                    const cnt = Array(n).fill(0);
-
-                    for (const p of ps) {
-                        for (let j = 0; j < n; j++) {
-                            if (p[j] === '1') {
-                                cnt[j]++;
-                            }
-                        }
-                    }
-
-                    for (let j = 0; j < n; j++) {
-                        if (ans[i][j] == EMPTY && cnt[j] == ps.size) {
-                            throw new Error(`冲突在位置 (${i}, ${j})`);
-                        }
-                        if (ans[i][j] === -1 && cnt[j] === ps.size) {
-                            f1(i, j);
-                            change = true;
-                        }
-                        if (ans[i][j] == FILLED && cnt[j] == 0) {
-                            throw new Error(`冲突在位置 (${i}, ${j})`);
-                        }
-                        if (ans[i][j] === -1 && cnt[j] === 0) {
-                            f0(i, j);
-                            change = true;
-                        }
-                    }
-                }
-
-                for (let i = 0; i < n; i++) {
-                    // 处理列
-                    const ps = pcol[i];
-                    const cnt = Array(n).fill(0);
-
-                    for (const p of ps) {
-                        for (let j = 0; j < n; j++) {
-                            if (p[j] === '1') {
-                                cnt[j]++;
-                            }
-                        }
-                    }
-
-                    for (let j = 0; j < n; j++) {
-                        if (ans[j][i] == EMPTY && cnt[j] == ps.size) {
-                            throw new Error(`冲突在位置 (${j}, ${i})`);
-                        }
-                        if (ans[j][i] == FILLED && cnt[j] == 0) {
-                            throw new Error(`冲突在位置 (${j}, ${i})`);
-                        }
-                        if (ans[j][i] === -1 && cnt[j] === ps.size) {
-                            f1(j, i);
-                            change = true;
-                        }
-                        if (ans[j][i] === -1 && cnt[j] === 0) {
-                            f0(j, i);
-                            change = true;
-                        }
-                    }
-                }
-
-                if (!change) {
-                    break;
-                }
-            }
-
-            return ans;
+        // 求解按钮包装（处理异步异常，避免按钮 onclick 静默吞错）
+        function solveWithLock() {
+            solve(false).catch(e => console.error('求解失败:', e));
         }
 
         // 解析函数，与Python版本兼容
@@ -1329,7 +1153,7 @@
             container.appendChild(gridEl);
         }
 
-        function loadSample() {
+        async function loadSample() {
             // 示例：一个 3x3 的简单图案
             const sampleRows =
                 `-1
@@ -1343,7 +1167,7 @@
             document.getElementById('row-constraints').value = sampleRows;
             document.getElementById('col-constraints').value = sampleCols;
 
-            solve();
+            await solve();
         }
 
         function clearConstraints() {
@@ -1961,7 +1785,7 @@
                     if (!isSpeedRacing) break;
                     setStatus('竞速中: 步骤3/5 - 求解...', 'connecting');
                     try {
-                        solve(true); // skipModal = true
+                        await solve(true); // skipModal = true
                     } catch (error) {
                         throw new Error(`求解失败: ${error.message}`);
                     }
