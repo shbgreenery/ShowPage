@@ -10,6 +10,7 @@ from bugcatcher_solver import solve_puzzle
 from bugcatcher_recognizer import recognize_bugs
 import nonogram_recognizer
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import json
 import sys
@@ -43,6 +44,7 @@ class Config:
     DEFAULT_PORT = 8085
     DEVICE_TIMEOUT = 5
     DEFAULT_TIMEOUT = 30
+    MAX_WORKERS = 10  # 限制并发请求数，防止线程膨胀导致性能退化
 
 
 class ADBCommand:
@@ -99,13 +101,15 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         try:
             logger.info("开始获取设备截图")
             base64_data = self._capture_screenshot()
+            # 用公式估算原始大小，避免全量 base64 解码
+            estimated_size = len(base64_data) * 3 // 4
             self.send_json_response({
                 'status': Status.OK,
                 'data': base64_data,
                 'format': 'png',
-                'size': len(base64.b64decode(base64_data))
+                'size': estimated_size
             })
-            logger.info(f"截图获取成功")
+            logger.info(f"截图获取成功，约 {estimated_size} 字节")
         except Exception as e:
             logger.error(f"截图处理异常: {e}", exc_info=True)
             self.send_json_response(
@@ -114,8 +118,9 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
     def _handle_analyze_nonogram(self):
         try:
             logger.info("开始分析数织游戏约束")
-            image_base64 = self._capture_screenshot()
-            constraints = self._analyze_nonogram_constraints(image_base64)
+            # 直接使用原始 PNG 字节，避免 base64 编解码开销
+            png_bytes = self._capture_screenshot_bytes()
+            constraints = self._analyze_nonogram_constraints(png_bytes)
             response_data = {'status': Status.OK, 'row': constraints.get(
                 'row', ''), 'col': constraints.get('col', '')}
             if 'gameArea' in constraints:
@@ -131,9 +136,10 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         logger.info("开始“田地捉虫”自动化流程")
         temp_path = None
         try:
+            # 直接获取原始 PNG 字节，避免 base64 编解码开销
+            png_bytes = self._capture_screenshot_bytes()
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                image_base64 = self._capture_screenshot()
-                tmp_file.write(base64.b64decode(image_base64))
+                tmp_file.write(png_bytes)
                 temp_path = tmp_file.name
             logger.info(f"截图已临时保存到 {temp_path}")
 
@@ -214,16 +220,21 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(HttpCode.NOT_FOUND, "Endpoint not found")
 
-    def _capture_screenshot(self) -> str:
-        """截取手机屏幕，返回 base64 编码的图片数据"""
+    def _capture_screenshot_bytes(self) -> bytes:
+        """截取手机屏幕，返回原始 PNG 字节数据（内部使用，避免不必要的编解码）"""
         try:
             result = subprocess.run(
                 ADBCommand.SCREENCAP, capture_output=True, timeout=Config.DEFAULT_TIMEOUT, check=True
             )
-            return base64.b64encode(result.stdout).decode('utf-8')
+            return result.stdout
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
             error_msg = e.stderr.decode() if hasattr(e, 'stderr') and e.stderr else str(e)
             raise Exception(f'截图失败: {error_msg}')
+
+    def _capture_screenshot(self) -> str:
+        """截取手机屏幕，返回 base64 编码的图片数据"""
+        png_bytes = self._capture_screenshot_bytes()
+        return base64.b64encode(png_bytes).decode('utf-8')
 
     def _batch_tap(self, taps: list[tuple[int, int]]):
         """批量执行点击操作"""
@@ -237,12 +248,12 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         except subprocess.CalledProcessError as e:
             logger.warning(f"点击命令可能部分失败: {e.stderr}")
 
-    def _analyze_nonogram_constraints(self, image_base64: str) -> dict:
+    def _analyze_nonogram_constraints(self, png_bytes: bytes) -> dict:
         """使用本地识别器分析数织游戏的行约束和列约束"""
         temp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                tmp_file.write(base64.b64decode(image_base64))
+                tmp_file.write(png_bytes)
                 temp_path = tmp_file.name
 
             logger.info("开始使用本地识别器分析数织约束")
@@ -283,6 +294,23 @@ class ADBProxyHandler(BaseHTTPRequestHandler):
         logger.info("%s - %s" % (self.address_string(), format_string % args))
 
 
+class PooledHTTPServer(ThreadingHTTPServer):
+    """限制并发线程数的 HTTP 服务器，防止长期运行线程膨胀和 GIL 争用"""
+
+    def __init__(self, *args, max_workers=Config.MAX_WORKERS, **kwargs):
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address):
+        """将请求提交到线程池而非无限创建新线程"""
+        self._executor.submit(self.process_request_thread, request, client_address)
+
+    def server_close(self):
+        """关闭服务器时等待所有线程完成"""
+        self._executor.shutdown(wait=True)
+        super().server_close()
+
+
 def main():
     # 配置日志
     setup_logger()
@@ -302,7 +330,7 @@ def main():
     logger.info("💡 按 Ctrl+C 停止服务器")
 
     try:
-        httpd = ThreadingHTTPServer(server_address, ADBProxyHandler)
+        httpd = PooledHTTPServer(server_address, ADBProxyHandler, max_workers=Config.MAX_WORKERS)
         httpd.serve_forever()
     except KeyboardInterrupt:
         logger.info("\n👋 服务器已停止")
