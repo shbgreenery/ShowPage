@@ -186,8 +186,7 @@
         }
 
         button:focus-visible,
-        .modal-close:focus-visible,
-        .settings-summary:focus-visible {
+        .modal-close:focus-visible {
             outline: 2px solid var(--primary);
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
@@ -195,8 +194,7 @@
         }
 
         button:focus:not(:focus-visible),
-        .modal-close:focus:not(:focus-visible),
-        .settings-summary:focus:not(:focus-visible) {
+        .modal-close:focus:not(:focus-visible) {
             outline: none;
         }
 
@@ -440,6 +438,10 @@
             border-radius: 4px;
             padding: 2px 4px;
             margin: -2px -4px;
+            user-select: none;
+        }
+        .settings-summary:focus {
+            outline: none;
         }
 
         /* 截图选择模态弹窗样式 */
@@ -563,7 +565,7 @@
             </div>
 
             <label for="row-constraints">行约束</label>
-            <textarea id="row-constraints" placeholder="例如：2 1&#10;5&#10;?" maxlength="400"></textarea>
+            <textarea id="row-constraints" placeholder="例如：2 1&#10;5&#10;?" maxlength="400" autofocus></textarea>
 
             <label for="col-constraints">列约束</label>
             <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400"></textarea>
@@ -584,9 +586,9 @@
             </div>
 
             <!-- 服务器配置 -->
-            <details
+            <details tabindex="-1"
                 style="margin-top: 24px; background: #fafafa; border-radius: 8px; padding: 12px; border: 1px solid var(--border-color);">
-                <summary class="settings-summary">
+                <summary class="settings-summary" tabindex="-1">
                     ⚙️ 高级设置</summary>
                 <div style="margin-top: 12px;">
                     <label style="font-size: 11px;">代理服务器地址</label>
@@ -647,6 +649,7 @@
         async function withButtonLock(buttonId, asyncCallback, loadingText) {
             const btn = document.getElementById(buttonId);
             const originalText = btn.textContent;
+            const wasFocused = document.activeElement === btn;
             btn.disabled = true;
             if (loadingText) btn.textContent = loadingText;
 
@@ -655,6 +658,7 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = originalText;
+                if (wasFocused) btn.focus();
             }
         }
 
