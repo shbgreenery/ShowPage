@@ -1,101 +1,246 @@
 #!/usr/bin/env python3
 """
-数织 (Nonogram) DFS 求解器
+数织 (Nonogram) 求解器 —— 混合算法（候选法 + 逐线 DP + 约束传播 worklist）
 
-使用组合数学生成候选模式 + 约束传播 + DFS 回溯，
-支持 30x30 及更大的谜题。
+小规模（n ≤ 15）：预计算所有约束的候选位掩码，查表 + 过滤，O(|cands|·n)
+大规模（n > 15）：逐线 DP，O(k·n²)，不受候选数膨胀影响
 
 算法：
-  1. 插空法：将约束转化为"把剩余空格插入间隙"的组合问题
-     - 约束 [3,2] 在长度 n=30 → 剩余空格=25-(3+2)=20, 间隙=3 → C(22,2)=231 种
-     - 远小于暴力枚举的 2^30 ≈ 10 亿种
-  2. 约束传播：利用行/列候选交叉验证，确定必然填/必然空的格子
-  3. DFS 分支定界：对未确定格子尝试填 1/0，每次分支后用约束传播剪枝
+  1. 小规模（n≤15）：预计算候选缓存 + while-changed 全量扫描，位运算取交集/并集
+  2. 大规模（n>15）：逐线 DP + worklist 增量传播，不受候选数膨胀影响
 """
 
+from collections import deque
 from itertools import combinations
-from typing import List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
-# 预生成候选模式的最大数量（超过此值则不预生成，在 DFS 中惰性处理）
-MAX_CANDIDATES = 50000
+# ─── 全局候选缓存（小规模预计算）──────────────────────────────────
 
-
-def _comb(n: int, k: int) -> int:
-    """计算组合数 C(n, k)"""
-    if k < 0 or k > n:
-        return 0
-    k = min(k, n - k)
-    result = 1
-    for i in range(k):
-        result = result * (n - i) // (i + 1)
-    return result
+_CANDIDATE_CACHE: Dict[int, Dict[Tuple[int, ...], List[int]]] = {}
+"""_CANDIDATE_CACHE[n][tuple(constraint)] = [bitmask, ...]"""
 
 
-def _generate_line_candidates(
+def _precompute_candidates(n: int) -> None:
+    """预计算 n 维所有可能约束的候选位掩码集，存入全局缓存。"""
+    if n in _CANDIDATE_CACHE:
+        return
+
+    # 枚举所有 2^n 种填充模式，收集所有不同的约束类型
+    constraints: set = set()
+    for mask in range(1 << n):
+        segs = []
+        cnt = 0
+        for i in range(n):
+            if (mask >> i) & 1:
+                cnt += 1
+            elif cnt > 0:
+                segs.append(cnt)
+                cnt = 0
+        if cnt > 0:
+            segs.append(cnt)
+        constraints.add(tuple(segs) if segs else (0,))
+
+    cache: Dict[Tuple[int, ...], List[int]] = {}
+    for c in constraints:
+        cache[c] = _generate_candidates_for_constraint(list(c), n)
+
+    _CANDIDATE_CACHE[n] = cache
+
+
+def _generate_candidates_for_constraint(
     constraint: List[int], n: int
-) -> Optional[List[int]]:
-    """
-    用插空法生成满足行/列约束的所有位掩码。
-
-    例如约束 [3, 2]，线长 n=10：
-      - 填充格: 3+2=5, 最少间隔: 1, 剩余空格: 10-5-1=4
-      - 把 4 个空格分配到 3 个间隙（段前/段间/段后）
-      - 共 C(4+2, 2) = 15 种分配方案
-
-    Args:
-        constraint: 数字约束列表，[-1] 表示未知
-        n: 线长
-
-    Returns:
-        位掩码列表（bit 0 = 位置 0），若约束未知或候选过多则返回 None
-    """
-    if not constraint:
-        return [0]  # 全空
-
-    if len(constraint) == 1 and constraint[0] == -1:
-        return None  # 未知约束，不预生成
-
+) -> List[int]:
+    """用插空法生成约束的所有候选位掩码（不含数量上限检查，信任调用方）。"""
+    if not constraint or constraint == [0]:
+        return [0]
     k = len(constraint)
     total_filled = sum(constraint)
-    min_gaps = k - 1  # k 段之间至少 k-1 个空格
-    free = n - total_filled - min_gaps
-
+    free = n - total_filled - (k - 1)
     if free < 0:
-        return []  # 约束本身不可满足
-
-    # 预估候选数量：C(free + k, k)
-    count = _comb(free + k, k)
-    if count > MAX_CANDIDATES:
-        return None  # 候选过多，延迟到 DFS 中按需处理
-
-    candidates = []
-
-    # 用组合数生成所有间隙分配方案
-    # free 个空格 + k 个"分隔线" = free+k 个位置，选 k 个作为分隔线
-    total_positions = free + k
-    for combo in combinations(range(total_positions), k):
+        return []
+    cands = []
+    for combo in combinations(range(free + k), k):
         gaps = []
         prev = -1
         for bar in combo:
             gaps.append(bar - prev - 1)
             prev = bar
-        gaps.append(total_positions - prev - 1)
-
-        # 根据间隙建造位掩码
+        gaps.append(free + k - prev - 1)
         mask = 0
         pos = 0
         for i in range(k):
-            pos += gaps[i]  # 段前空格
-            # 连续的填充格
+            pos += gaps[i]
             for _ in range(constraint[i]):
                 mask |= 1 << pos
                 pos += 1
             if i < k - 1:
-                pos += 1  # 段间最少 1 个空格
+                pos += 1
+        cands.append(mask)
+    return cands
 
-        candidates.append(mask)
 
-    return candidates
+# 用户常用规模，模块加载时预计算
+for _n in [10, 15]:
+    _precompute_candidates(_n)
+
+
+# ─── 逐线分析 ──────────────────────────────────────────────────────
+
+
+def _analyze_line(
+    cells: List[int], constraint: List[int]
+) -> Tuple[Optional[List[int]], Optional[List[int]], bool]:
+    """
+    逐线 DP：left/right DP 表 + 前缀和 + 差分数组。
+
+    仅用于大规模（n > 15）传播，小规模走 _propagate_small（缓存候选法）。
+    """
+    # 未知约束 → 无法推导
+    if len(constraint) == 1 and constraint[0] == -1:
+        return [], [], True
+    return _analyze_line_dp(cells, constraint)
+
+
+def _analyze_line_dp(
+    cells: List[int], constraint: List[int]
+) -> Tuple[Optional[List[int]], Optional[List[int]], bool]:
+    """
+    逐线 DP：left/right DP 表 + 前缀和 + 差分数组。
+
+    不受候选数膨胀影响，适合大规模（n > 15）。
+    """
+    n = len(cells)
+
+    # 全空约束
+    if not constraint or constraint == [0]:
+        forced_zeros = []
+        for j in range(n):
+            if cells[j] == 1:
+                return None, None, False
+            if cells[j] == -1:
+                forced_zeros.append(j)
+        return [], forced_zeros, True
+
+    k = len(constraint)
+
+    # 前缀和：O(1) 区间查询
+    zero_pref = [0] * (n + 1)
+    one_pref = [0] * (n + 1)
+    for i in range(n):
+        zero_pref[i + 1] = zero_pref[i] + (1 if cells[i] == 0 else 0)
+        one_pref[i + 1] = one_pref[i] + (1 if cells[i] == 1 else 0)
+
+    def has_zero(lo: int, hi: int) -> bool:
+        return zero_pref[hi] - zero_pref[lo] > 0
+
+    def has_one(lo: int, hi: int) -> bool:
+        return one_pref[hi] - one_pref[lo] > 0
+
+    # left[i][j]: 块 0..i-1 放入 cells[0..j-1]
+    left = [[False] * (n + 1) for _ in range(k + 1)]
+    left[0][0] = True
+    for j in range(1, n + 1):
+        left[0][j] = left[0][j - 1] and cells[j - 1] != 1
+
+    for i in range(1, k + 1):
+        blk = constraint[i - 1]
+        for j in range(1, n + 1):
+            if cells[j - 1] != 1 and left[i][j - 1]:
+                left[i][j] = True
+                continue
+            if j < blk:
+                continue
+            start = j - blk
+            if has_zero(start, j):
+                continue
+            if start > 0 and cells[start - 1] == 1:
+                continue
+            if start == 0:
+                left[i][j] = (i == 1)
+            else:
+                left[i][j] = left[i - 1][start - 1]
+
+    if not left[k][n]:
+        return None, None, False
+
+    # right[i][j]: 块 i..k-1 放入 cells[j..n-1]
+    right = [[False] * (n + 1) for _ in range(k + 1)]
+    right[k][n] = True
+    for j in range(n - 1, -1, -1):
+        right[k][j] = (cells[j] != 1) and right[k][j + 1]
+
+    for i in range(k - 1, -1, -1):
+        blk = constraint[i]
+        for j in range(n - 1, -1, -1):
+            if cells[j] != 1 and right[i][j + 1]:
+                right[i][j] = True
+                continue
+            end = j + blk
+            if end > n:
+                continue
+            if has_zero(j, end):
+                continue
+            if end < n and cells[end] == 1:
+                continue
+            next_j = end + 1 if end < n else n
+            if right[i + 1][next_j]:
+                right[i][j] = True
+
+    # can_be_0
+    can_be_0 = [False] * n
+    for j in range(n):
+        if cells[j] != -1:
+            continue
+        for i in range(k + 1):
+            if left[i][j] and right[i][j + 1]:
+                can_be_0[j] = True
+                break
+
+    # can_be_1：差分数组批量标记
+    diff = [0] * (n + 1)
+    for i in range(k):
+        blk = constraint[i]
+        for start in range(n - blk + 1):
+            end = start + blk
+            if has_zero(start, end):
+                continue
+            if start > 0 and cells[start - 1] == 1:
+                continue
+            if end < n and cells[end] == 1:
+                continue
+            if start == 0:
+                left_ok = (i == 0)
+            else:
+                left_ok = left[i][start - 1]
+            if not left_ok:
+                continue
+            next_j = end + 1 if end < n else n
+            if not right[i + 1][next_j]:
+                continue
+            diff[start] += 1
+            diff[end] -= 1
+
+    can_be_1 = [False] * n
+    cur = 0
+    for j in range(n):
+        cur += diff[j]
+        if cur > 0:
+            can_be_1[j] = True
+
+    # 收集结论
+    forced_ones = []
+    forced_zeros = []
+    for j in range(n):
+        if cells[j] != -1:
+            continue
+        if can_be_1[j] and not can_be_0[j]:
+            forced_ones.append(j)
+        elif can_be_0[j] and not can_be_1[j]:
+            forced_zeros.append(j)
+        elif not can_be_1[j] and not can_be_0[j]:
+            return None, None, False
+
+    return forced_ones, forced_zeros, True
 
 
 # ─── 约束传播 ────────────────────────────────────────────────────
@@ -103,35 +248,76 @@ def _generate_line_candidates(
 
 def _propagate(
     grid: List[List[int]],
-    row_cands: List[Optional[Set[int]]],
-    col_cands: List[Optional[Set[int]]],
+    row_constraints: List[List[int]],
+    col_constraints: List[List[int]],
 ) -> bool:
     """
-    约束传播：利用行/列候选交叉验证，确定必然填充或必然空的格子。
-
-    对每行：
-      - 若所有候选在位置 j 都是 1 → grid[r][j] = 1（强制填充）
-      - 若所有候选在位置 j 都是 0 → grid[r][j] = 0（强制空）
-    对列同理。填充/清空后过滤对立面候选。
-
-    Returns:
-        True 若状态一致，False 若发现矛盾
+    约束传播，根据 n 自动选择策略：
+      - n ≤ 15 且缓存已有 → 缓存候选集 + while changed 全量扫描
+      - 否则 → 逐线 DP + worklist 增量传播
     """
     n = len(grid)
-    changed = True
 
+    if n in _CANDIDATE_CACHE:
+        return _propagate_small(grid, row_constraints, col_constraints)
+    else:
+        return _propagate_large(grid, row_constraints, col_constraints)
+
+
+def _propagate_small(
+    grid: List[List[int]],
+    row_constraints: List[List[int]],
+    col_constraints: List[List[int]],
+) -> bool:
+    """小规模：缓存候选集 + while changed 全量扫描。"""
+    n = len(grid)
+
+    # 从缓存加载候选集（无需初始过滤，候选是约束的全部合法填充）
+    row_cands = [None] * n
+    col_cands = [None] * n
+    for r in range(n):
+        c = tuple(row_constraints[r]) if row_constraints[r] else (0,)
+        if c == (-1,):
+            row_cands[r] = None
+        else:
+            row_cands[r] = set(_CANDIDATE_CACHE[n][c])
+    for c in range(n):
+        ck = tuple(col_constraints[c]) if col_constraints[c] else (0,)
+        if ck == (-1,):
+            col_cands[c] = None
+        else:
+            col_cands[c] = set(_CANDIDATE_CACHE[n][ck])
+
+    # 高效过滤：只检查一个位置
+    def _filter_row(r: int, c: int, is_filled: bool):
+        cands = row_cands[r]
+        if cands is None:
+            return
+        if is_filled:
+            row_cands[r] = {m for m in cands if (m >> c) & 1}
+        else:
+            row_cands[r] = {m for m in cands if not ((m >> c) & 1)}
+
+    def _filter_col(c: int, r: int, is_filled: bool):
+        cands = col_cands[c]
+        if cands is None:
+            return
+        if is_filled:
+            col_cands[c] = {m for m in cands if (m >> r) & 1}
+        else:
+            col_cands[c] = {m for m in cands if not ((m >> r) & 1)}
+
+    changed = True
     while changed:
         changed = False
 
-        # ── 处理行 ──
         for r in range(n):
             cands = row_cands[r]
             if cands is None:
                 continue
             if not cands:
-                return False  # 有约束的行候选集为空 → 矛盾
+                return False
 
-            # 计算 all_ones（所有候选的交集）和 any_one（所有候选的并集）
             all_ones = (1 << n) - 1
             any_one = 0
             for mask in cands:
@@ -142,17 +328,14 @@ def _propagate(
                 if grid[r][c] != -1:
                     continue
                 if (all_ones >> c) & 1:
-                    # 所有候选都在位置 c 有 1 → 强制填充
                     grid[r][c] = 1
                     changed = True
-                    _filter_col_candidates(col_cands, c, r, True)
+                    _filter_col(c, r, True)
                 elif not ((any_one >> c) & 1):
-                    # 没有候选在位置 c 有 1 → 强制空
                     grid[r][c] = 0
                     changed = True
-                    _filter_col_candidates(col_cands, c, r, False)
+                    _filter_col(c, r, False)
 
-        # ── 处理列 ──
         for c in range(n):
             cands = col_cands[c]
             if cands is None:
@@ -172,58 +355,86 @@ def _propagate(
                 if (all_ones >> r) & 1:
                     grid[r][c] = 1
                     changed = True
-                    _filter_row_candidates(row_cands, r, c, True)
+                    _filter_row(r, c, True)
                 elif not ((any_one >> r) & 1):
                     grid[r][c] = 0
                     changed = True
-                    _filter_row_candidates(row_cands, r, c, False)
+                    _filter_row(r, c, False)
 
     return True
 
 
-def _filter_col_candidates(
-    col_cands: List[Optional[Set[int]]], c: int, r: int, is_filled: bool
-):
-    """从列候选集中移除与 (r, c) 格子状态不一致的候选"""
-    cands = col_cands[c]
-    if cands is None:
-        return
-    if is_filled:
-        col_cands[c] = {m for m in cands if (m >> r) & 1}
-    else:
-        col_cands[c] = {m for m in cands if not ((m >> r) & 1)}
-
-
-def _filter_row_candidates(
-    row_cands: List[Optional[Set[int]]], r: int, c: int, is_filled: bool
-):
-    """从行候选集中移除与 (r, c) 格子状态不一致的候选"""
-    cands = row_cands[r]
-    if cands is None:
-        return
-    if is_filled:
-        row_cands[r] = {m for m in cands if (m >> c) & 1}
-    else:
-        row_cands[r] = {m for m in cands if not ((m >> c) & 1)}
-
-
-# ─── 求解入口 ────────────────────────────────────────────────────
-
-
-def _solve_by_propagation(
+def _propagate_large(
     grid: List[List[int]],
-    row_cands: List[Optional[Set[int]]],
-    col_cands: List[Optional[Set[int]]],
-) -> Optional[List[List[int]]]:
-    """
-    纯约束传播求解：反复用行/列候选交叉验证，尽可能确定格子。
-    不做猜测——无法由约束必然确定的格子保持 -1。
+    row_constraints: List[List[int]],
+    col_constraints: List[List[int]],
+) -> bool:
+    """大规模：逐线 DP + worklist 增量传播。"""
+    n = len(grid)
 
-    这与 Nonogram 的玩法一致：玩家只填"必然"的格子，不确定的留空。
-    """
-    if not _propagate(grid, row_cands, col_cands):
-        return None  # 约束矛盾
-    return grid
+    fingerprints = {}
+    q = deque()
+
+    for r in range(n):
+        q.append(('row', r))
+    for c in range(n):
+        q.append(('col', c))
+
+    while q:
+        key = q.popleft()
+        line_type, idx = key
+
+        if line_type == 'row':
+            r = idx
+            constraint = row_constraints[r]
+
+            cells = grid[r]
+            current_fp = tuple(cells)
+            if fingerprints.get(key) == current_fp:
+                continue
+
+            forced_ones, forced_zeros, ok = _analyze_line(cells, constraint)
+            if not ok:
+                return False
+
+            for c in forced_ones:
+                grid[r][c] = 1
+                q.appendleft(('col', c))
+            for c in forced_zeros:
+                grid[r][c] = 0
+                q.appendleft(('col', c))
+
+            fingerprints[key] = tuple(grid[r])
+
+            if any(v == -1 for v in grid[r]):
+                q.append(key)
+
+        else:  # 'col'
+            c = idx
+            constraint = col_constraints[c]
+
+            cells = [grid[r][c] for r in range(n)]
+            current_fp = tuple(cells)
+            if fingerprints.get(key) == current_fp:
+                continue
+
+            forced_ones, forced_zeros, ok = _analyze_line(cells, constraint)
+            if not ok:
+                return False
+
+            for r in forced_ones:
+                grid[r][c] = 1
+                q.appendleft(('row', r))
+            for r in forced_zeros:
+                grid[r][c] = 0
+                q.appendleft(('row', r))
+
+            fingerprints[key] = tuple(grid[r][c] for r in range(n))
+
+            if any(grid[r][c] == -1 for r in range(n)):
+                q.append(key)
+
+    return True
 
 
 # ─── 公开接口 ────────────────────────────────────────────────────
@@ -257,26 +468,12 @@ def solve(
             f"行数 ({n}) 和列数 ({len(cols)}) 必须相等"
         )
 
-    # 生成候选模式
-    row_cands = [_generate_line_candidates(r, n) for r in rows]
-    col_cands = [_generate_line_candidates(c, n) for c in cols]
-
-    # 预处理检查：有约束的行/列候选集是否非空
-    for i, cands in enumerate(row_cands):
-        if cands is not None and not cands:
-            return None
-    for i, cands in enumerate(col_cands):
-        if cands is not None and not cands:
-            return None
-
-    # 转换为 set 以便高效 filter
-    row_cands = [set(c) if c is not None else None for c in row_cands]
-    col_cands = [set(c) if c is not None else None for c in col_cands]
-
-    # 初始网格
     grid = [[-1] * n for _ in range(n)]
 
-    return _solve_by_propagation(grid, row_cands, col_cands)
+    if not _propagate(grid, rows, cols):
+        return None
+
+    return grid
 
 
 # ─── 命令行入口（用于测试）──────────────────────────────────────
@@ -287,7 +484,6 @@ def main():
     import sys
     import json
 
-    # 示例：3x3 十字图案
     rows = [[3], [1, 1], [3]]
     cols = [[3], [1, 1], [3]]
 
@@ -309,7 +505,6 @@ def main():
         print("无解！")
         sys.exit(1)
 
-    # 渲染结果
     print()
     symbol = {1: "█", 0: "·", -1: "?"}
     for row in result:
