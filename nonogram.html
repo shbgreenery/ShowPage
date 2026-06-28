@@ -565,24 +565,24 @@
             </div>
 
             <label for="row-constraints">行约束</label>
-            <textarea id="row-constraints" placeholder="例如：2 1&#10;5&#10;?" maxlength="400" autofocus></textarea>
+            <textarea id="row-constraints" placeholder="例如：2 1&#10;5&#10;?" maxlength="400" tabindex="-1"></textarea>
 
             <label for="col-constraints">列约束</label>
-            <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400"></textarea>
+            <textarea id="col-constraints" placeholder="例如：1 1&#10;?&#10;2 2" maxlength="400" tabindex="-1"></textarea>
 
             <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button class="btn-primary" onclick="solveWithLock()">求解</button>
-                <button onclick="loadSample()">示例</button>
-                <button onclick="toggleSpeedRacing()" id="speed-racing-btn">竞速</button>
+                <button class="btn-primary" onclick="solveWithLock()" tabindex="-1">求解</button>
+                <button onclick="loadSample()" tabindex="-1">示例</button>
+                <button onclick="toggleSpeedRacing()" id="speed-racing-btn" tabindex="-1">竞速</button>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button onclick="clearConstraints()">清空</button>
-                <button onclick="analyzeFromScreenshot()" id="analyze-btn">AI识别</button>
-                <button onclick="tapNextFilled()" id="tap-next-filled-btn">下一个</button>
+                <button onclick="clearConstraints()" tabindex="-1">清空</button>
+                <button onclick="analyzeFromScreenshot()" id="analyze-btn" tabindex="-1">AI识别</button>
+                <button onclick="tapNextFilled()" id="tap-next-filled-btn" tabindex="-1">下一个</button>
             </div>
             <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button onclick="batchTapAllFilled()" id="batch-tap-btn">填充</button>
-                <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn">空格</button>
+                <button onclick="batchTapAllFilled()" id="batch-tap-btn" tabindex="-1">填充</button>
+                <button onclick="batchTapAllEmpty()" id="batch-tap-empty-btn" tabindex="-1">空格</button>
             </div>
 
             <!-- 服务器配置 -->
@@ -592,7 +592,7 @@
                     ⚙️ 高级设置</summary>
                 <div style="margin-top: 12px;">
                     <label style="font-size: 11px;">代理服务器地址</label>
-                    <input type="text" id="proxy-url" value="http://localhost:8085" onchange="saveConfig()"
+                    <input type="text" id="proxy-url" value="http://localhost:8085" onchange="saveConfig()" tabindex="-1"
                         style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; margin-top: 4px;">
                 </div>
             </details>
@@ -1979,7 +1979,7 @@
         <div class="modal screenshot-modal">
             <div class="modal-header">
                 <h3>📸 选择游戏网格区域</h3>
-                <button class="modal-close" onclick="closeScreenshotModal()">
+                <button class="modal-close" onclick="closeScreenshotModal()" tabindex="-1">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                         <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" />
@@ -2003,9 +2003,9 @@
                     style="color: var(--danger); text-align: center; margin-top: 16px; display: none;"></div>
             </div>
             <div class="modal-footer">
-                <button onclick="closeScreenshotModal()">取消</button>
+                <button onclick="closeScreenshotModal()" tabindex="-1">取消</button>
                 <button class="btn-primary" onclick="confirmSelection()" id="confirm-selection-btn"
-                    disabled>确认选择</button>
+                    disabled tabindex="-1">确认选择</button>
             </div>
         </div>
     </div>
